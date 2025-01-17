@@ -1,10 +1,13 @@
 #ifndef DISPLAY_H
 #define DISPLAY_H
 
-#include <Adafruit_SSD1306.h>
+#include <Adafruit_ST7735.h>
+
+extern Adafruit_ST7735 display;
 
 // Funktionen
-void setupDisplay(Adafruit_SSD1306& display);
-void updateDisplay(Adafruit_SSD1306& display, String fajr, String dhuhr, String asr, String maghrib, String isha, String time);
+void setupDisplay(Adafruit_ST7735& display);
+void updateDisplay(Adafruit_ST7735& display, String fajr, String shuruk, String dhuhr, String asr, String maghrib, String isha, String time);
+void showPrayerReminder(Adafruit_ST7735& display, String prayerName, String prayerTime);
 
 #endif

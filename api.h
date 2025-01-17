@@ -5,6 +5,5 @@
 #include <ESP8266HTTPClient.h>
 
 // Funktionen
-void fetchPrayerTimes(String& fajr, String& dhuhr, String& asr, String& maghrib, String& isha, String apiUrl);
-
+void fetchPrayerTimes(String& fajr, String& shuruk, String& dhuhr, String& asr, String& maghrib, String& isha, const String& apiUrl);
 #endif

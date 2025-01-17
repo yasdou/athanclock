@@ -1,6 +1,19 @@
 #ifndef AUDIO_H
 #define AUDIO_H
 
-void playAthan();
+#include <SoftwareSerial.h>
+#include "DFRobotDFPlayerMini.h"
 
-#endif
+// Externe Deklaration der Variablen
+extern SoftwareSerial mySerial;
+extern DFRobotDFPlayerMini myDFPlayer;
+extern bool isAudioInitialized; // Zustand der Audio-Initialisierung
+
+// Funktionsprototypen
+void setupAudio();
+void playBoot();
+void playAthan();
+void playReminder();
+void showBootMessage(const char* message);
+
+#endif // AUDIO_H
