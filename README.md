@@ -6,6 +6,11 @@ When I was searching for one to buy I only found ugly clocks from 19. century or
 
 So I started to build one myself. It is very simple right now. But I hope that the project gets bigger with time. 
 
+I am no Developer. The code is mainly written by ChatGPT. 
+
+I used a NodeMCU (ESP8266 but might change to ESP32 for bluetooth and more power), a DFPlayer Mini, a 4 GB SD Card and a 8 Watt 3 Ohm speaker. 
+I will provide schematics if you want to build it for yourself.
+
 Main Goals: 
 
 1. Show the Prayer Times of the day of my city [DONE]
