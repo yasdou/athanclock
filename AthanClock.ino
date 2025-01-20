@@ -8,6 +8,8 @@
 #include "display.h"
 #include "audio.h"
 #include "api.h"
+#include "Server.h"
+#include "App.h"
 #include <TimeLib.h>
 
 
@@ -129,6 +131,11 @@ void setup() {
   // while (!myDFPlayer.available() || myDFPlayer.readType() != DFPlayerPlayFinished) {
   //     delay(100); // Kurz warten, um die CPU nicht zu blockieren
   // }
+  // Server starten
+  startServer();
+
+  // mDNS starten
+  setupMDNS();
 
 }
 
@@ -186,6 +193,9 @@ void loop() {
     updateDisplay(display, fajrTime, shurukTime, dhuhrTime, asrTime, maghribTime, ishaTime, timeClient.getFormattedTime());
     lastUpdatedMinute = currentMinute;
   }
+
+handleClientRequests(); // Verarbeite eingehende HTTP-Anfragen
+  updateAppSettings();    // Verarbeite App-Kommunikation
 
   // Gebetszeiten um Mitternacht aktualisieren
   if (timeClient.getHours() == 0 && timeClient.getMinutes() == 0 && millis() - lastPrayerUpdate > 60 * 1000) {
