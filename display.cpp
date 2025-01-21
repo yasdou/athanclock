@@ -75,16 +75,12 @@ void updateDisplay(Adafruit_ST7735& display, String fajr, String shuruk, String 
 
 void showPrayerReminder(Adafruit_ST7735& display, String prayerName, String prayerTime) {
     Serial.println("Starte showPrayerReminder...");
-    Serial.print("Prayer Name: ");
-    Serial.println(prayerName);
-    Serial.print("Prayer Time: ");
-    Serial.println(prayerTime);
 
-    // Berechne die Reminder-Zeit (15 Minuten vorher)
+    // Gebetszeit extrahieren
     int prayerHour = prayerTime.substring(0, 2).toInt();
     int prayerMinute = prayerTime.substring(3, 5).toInt();
 
-    // 15 Minuten abziehen
+    // Reminder-Zeit berechnen (15 Minuten vor der Gebetszeit)
     int reminderMinute = prayerMinute - 15;
     int reminderHour = prayerHour;
     if (reminderMinute < 0) {
@@ -95,40 +91,33 @@ void showPrayerReminder(Adafruit_ST7735& display, String prayerName, String pray
         }
     }
 
-    Serial.print("Reminder Hour: ");
-    Serial.println(reminderHour);
-    Serial.print("Reminder Minute: ");
-    Serial.println(reminderMinute);
-
-    // Aktuelle Zeit holen
+    // Aktuelle Zeit abrufen
     int currentHour = timeClient.getHours();
     int currentMinute = timeClient.getMinutes();
     int currentSecond = timeClient.getSeconds();
 
-    Serial.print("Current Time: ");
+    Serial.print("Aktuelle Zeit: ");
     Serial.print(currentHour);
     Serial.print(":");
     Serial.print(currentMinute);
     Serial.print(":");
     Serial.println(currentSecond);
 
-    // Berechne die verbleibende Zeit bis zum Gebet (in Sekunden)
-    int remainingSeconds = (reminderHour - currentHour) * 3600 + (reminderMinute - currentMinute) * 60 - currentSecond;
+    // Berechnung der verbleibenden Sekunden bis zur Gebetszeit
+    int remainingSeconds = (prayerHour - currentHour) * 3600 + (prayerMinute - currentMinute) * 60 - currentSecond;
 
-    Serial.print("Remaining Seconds: ");
-    Serial.println(remainingSeconds);
+    // Prüfen, ob sich die aktuelle Zeit im Reminder-Fenster befindet
+    int reminderStartSeconds = (reminderHour - currentHour) * 3600 + (reminderMinute - currentMinute) * 60 - currentSecond;
 
-    if (remainingSeconds > 0) {
+    if (reminderStartSeconds <= 0 && remainingSeconds > 0) {
         // Countdown berechnen
         int countdownMinutes = remainingSeconds / 60;
         int countdownSeconds = remainingSeconds % 60;
 
-        String countdownText = (countdownMinutes < 10 ? "0" : "") + String(countdownMinutes) + ":" + (countdownSeconds < 10 ? "0" : "") + String(countdownSeconds);
+        String countdownText = (countdownMinutes < 10 ? "0" : "") + String(countdownMinutes) + ":" + 
+                               (countdownSeconds < 10 ? "0" : "") + String(countdownSeconds);
 
-        Serial.print("Countdown Text: ");
-        Serial.println(countdownText);
-
-        // Display löschen und Gebet und Countdown anzeigen
+        // Display löschen und Reminder anzeigen
         display.fillScreen(ST77XX_WHITE);
         display.setTextSize(2);
         int16_t x1, y1;
@@ -149,7 +138,14 @@ void showPrayerReminder(Adafruit_ST7735& display, String prayerName, String pray
         display.getTextBounds(countdownText, 0, 0, &x1, &y1, &width, &height);
         display.setCursor((display.width() - width) / 2, 70);
         display.print(countdownText);
+
+        Serial.print("Countdown bis zum Gebet: ");
+        Serial.println(countdownText);
+
+    } else if (remainingSeconds <= 0) {
+        Serial.println("Gebetszeit erreicht oder überschritten.");
     } else {
-        Serial.println("Keine verbleibende Zeit für Reminder.");
+        Serial.println("Reminder noch nicht aktiv.");
     }
 }
+
