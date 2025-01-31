@@ -1,8 +1,10 @@
 #ifndef SERVER_H
 #define SERVER_H
 
-void startServer();
-void setupMDNS();
-void handleClientRequests();
+#include <ESP8266WebServer.h> // Für ESP8266. Für ESP32: <WebServer.h>
 
-#endif
+extern ESP8266WebServer server;
+
+void setupServerRoutes();
+
+#endif // SERVER_H

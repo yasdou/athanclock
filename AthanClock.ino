@@ -126,7 +126,7 @@ void setup() {
   display.setTextSize(1);
   showBootMessage("Boot abgeschlossen!");
   Serial.println("Spiele Boot Ton ab...");
-  playBoot();
+  playReminder(reminderTone);
   // // Warte, bis die Audio-Wiedergabe abgeschlossen ist
   // while (!myDFPlayer.available() || myDFPlayer.readType() != DFPlayerPlayFinished) {
   //     delay(100); // Kurz warten, um die CPU nicht zu blockieren
@@ -139,15 +139,18 @@ void setup() {
 
 }
 
-bool isTimeForReminder(String prayerTime, bool& reminderPlayed) {
+bool isTimeForReminder(String prayerTime, bool& reminderPlayed, int reminderMode) {
+  if (reminderMode == 0) return false; // Kein Reminder für diesen Modus
+
   String currentTime = timeClient.getFormattedTime().substring(0, 5);  // Nur HH:MM vergleichen
 
-  // Reminder-Zeit berechnen (15 Minuten vorher)
+  // Reminder-Zeit berechnen (je nach Modus, z.B. 15 oder 30 Minuten vorher)
+  int reminderOffset = (reminderMode == 1) ? 15 : 30; 
   int prayerHour = prayerTime.substring(0, 2).toInt();
   int prayerMinute = prayerTime.substring(3, 5).toInt();
 
   int reminderHour = prayerHour;
-  int reminderMinute = prayerMinute - 15;
+  int reminderMinute = prayerMinute - reminderOffset;
 
   if (reminderMinute < 0) {
     reminderMinute += 60;
@@ -160,25 +163,22 @@ bool isTimeForReminder(String prayerTime, bool& reminderPlayed) {
   String reminderTime = (reminderHour < 10 ? "0" : "") + String(reminderHour) + ":" + (reminderMinute < 10 ? "0" : "") + String(reminderMinute);
 
   if (currentTime == reminderTime && !reminderPlayed) {
-    Serial.print("Reminder ausgelöst für: ");
-    Serial.println(reminderTime);
-    reminderPlayed = true;  // Verhindere mehrfaches Abspielen
+    reminderPlayed = true;
     return true;
   }
 
   if (currentTime != reminderTime) {
-    if (reminderPlayed) {
-      Serial.print("Reminder zurückgesetzt für: ");
-      Serial.println(prayerTime);
-    }
-    reminderPlayed = false;  // Rücksetzen
+    reminderPlayed = false;
   }
 
   return false;
 }
 
 
-bool shouldPlayAthan(String prayerTime) {
+
+bool shouldPlayAthan(String prayerTime, int athanMode) {
+  if (athanMode == 0) return false; // Kein Athan für diesen Modus
+
   String currentTime = timeClient.getFormattedTime().substring(0, 5);  // Nur HH:MM vergleichen
   return (currentTime == prayerTime);
 }
@@ -194,8 +194,8 @@ void loop() {
     lastUpdatedMinute = currentMinute;
   }
 
-handleClientRequests(); // Verarbeite eingehende HTTP-Anfragen
-  updateAppSettings();    // Verarbeite App-Kommunikation
+  handleClientRequests(); // Verarbeite eingehende HTTP-Anfragen
+  handleSaveSettings();    // Verarbeite App-Kommunikation
 
   // Gebetszeiten um Mitternacht aktualisieren
   if (timeClient.getHours() == 0 && timeClient.getMinutes() == 0 && millis() - lastPrayerUpdate > 60 * 1000) {
@@ -205,34 +205,44 @@ handleClientRequests(); // Verarbeite eingehende HTTP-Anfragen
   }
 
   // Anzeige des Gebets-Countdowns 15 Minuten vorher
-  if (isTimeForReminder(fajrTime, fajrReminderPlayed)) {
+  if (isTimeForReminder(fajrTime, fajrReminderPlayed, prayerReminderModes[0])) {
     Serial.println("Reminder-Check läuft...");
+    playReminder(reminderTone);
     showPrayerReminder(display, "Fajr", fajrTime);
   }
-  if (isTimeForReminder(shurukTime, shurukReminderPlayed)) {
+  if (isTimeForReminder(shurukTime, shurukReminderPlayed, prayerReminderModes[1])) {
     Serial.println("Reminder-Check läuft...");
+    playReminder(reminderTone);
     showPrayerReminder(display, "Shuruk", shurukTime);
   }
-  if (isTimeForReminder(dhuhrTime, dhuhrReminderPlayed)) {
+  if (isTimeForReminder(dhuhrTime, dhuhrReminderPlayed, prayerReminderModes[2])) {
     Serial.println("Reminder-Check läuft...");
+    playReminder(reminderTone);
     showPrayerReminder(display, "Dhuhr", dhuhrTime);
   }
-  if (isTimeForReminder(asrTime, asrReminderPlayed)) {
+  if (isTimeForReminder(asrTime, asrReminderPlayed, prayerReminderModes[3])) {
     Serial.println("Reminder-Check läuft...");
+    playReminder(reminderTone);
     showPrayerReminder(display, "Asr", asrTime);
   }
-  if (isTimeForReminder(maghribTime, maghribReminderPlayed)) {
+  if (isTimeForReminder(maghribTime, maghribReminderPlayed, prayerReminderModes[4])) {
     Serial.println("Reminder-Check läuft...");
+    playReminder(reminderTone);
     showPrayerReminder(display, "Maghrib", maghribTime);
   }
-  if (isTimeForReminder(ishaTime, ishaReminderPlayed)) {
+  if (isTimeForReminder(ishaTime, ishaReminderPlayed, prayerReminderModes[5])) {
     Serial.println("Reminder-Check läuft...");
+    playReminder(reminderTone);
     showPrayerReminder(display, "Isha", ishaTime);
   }
 
-  // Athan abspielen, wenn es Zeit ist
-  if (shouldPlayAthan(fajrTime) || shouldPlayAthan(shurukTime) || shouldPlayAthan(dhuhrTime) || shouldPlayAthan(asrTime) || shouldPlayAthan(maghribTime) || shouldPlayAthan(ishaTime)) {
-    playAthan();
+ if (shouldPlayAthan(fajrTime, prayerAthanModes[0]) ||
+      shouldPlayAthan(shurukTime, prayerAthanModes[1]) ||
+      shouldPlayAthan(dhuhrTime, prayerAthanModes[2]) ||
+      shouldPlayAthan(asrTime, prayerAthanModes[3]) ||
+      shouldPlayAthan(maghribTime, prayerAthanModes[4]) ||
+      shouldPlayAthan(ishaTime, prayerAthanModes[5])) {
+    playAthan(athanTone);
   }
 
   delay(1000);  // 1-Sekunden-Intervall
