@@ -8,8 +8,7 @@
 #include "display.h"
 #include "audio.h"
 #include "api.h"
-#include "Server.h"
-#include "App.h"
+#include "app.h"
 #include <TimeLib.h>
 
 
