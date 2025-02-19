@@ -1,98 +1,122 @@
-#include <ArduinoJson.h>
-#include "config.h"
-#include <ESP8266WebServer.h>
-#include <ESP8266mDNS.h>
+// #include <ArduinoJson.h>
+// #include "app.h"
+// #include "config.h"
 
 
-// HTTP-Server auf Port 80
-ESP8266WebServer server(80);
 
-// Starte HTTP-Server
-void startServer() {
-  // Definiere Routen
-  server.on("/", HTTP_GET, []() {
-    server.send(200, "text/plain", "AthanClock ist erreichbar!");
-  });
+// // HTTP-Server auf Port 80
+// ESP8266WebServer server(80);
 
-  server.on("/settings", HTTP_POST, []() {
-    if (server.hasArg("plain")) {
-      String body = server.arg("plain");
-      Serial.println("Einstellungen empfangen: " + body);
-      // Verarbeite die Einstellungen hier
-      server.send(200, "text/plain", "Einstellungen aktualisiert");
-    } else {
-      server.send(400, "text/plain", "Keine Daten empfangen");
-    }
-  });
+// // Starte HTTP-Server
+// void startServer() {
+//   // Definiere Routen
+//   server.on("/", HTTP_GET, []() {
+//     server.send(200, "text/plain", "AthanClock ist erreichbar!");
+//   });
 
-  server.begin();
-  Serial.println("HTTP-Server gestartet!");
-}
+//   server.on("/settings", HTTP_POST, []() {
+//     if (server.hasArg("plain")) {
+//       String body = server.arg("plain");
+//       Serial.println("Einstellungen empfangen: " + body);
+//       // Verarbeite die Einstellungen hier
+//       server.send(200, "text/plain", "Einstellungen aktualisiert");
+//     } else {
+//       server.send(400, "text/plain", "Keine Daten empfangen");
+//     }
+//   });
 
-// Setze mDNS
-void setupMDNS() {
-  if (MDNS.begin("athanclock")) { // Hostname: athanclock.local
-    Serial.println("mDNS gestartet: athanclock.local");
-  } else {
-    Serial.println("Fehler beim Starten des mDNS!");
-  }
-}
+//   server.begin();
+//   Serial.println("HTTP-Server gestartet!");
+// }
 
-// Verarbeite eingehende Anfragen
-void handleClientRequests() {
-  server.handleClient();
-}
+// // Setze mDNS
+// void setupMDNS() {
+//   if (MDNS.begin("athanclock")) { // Hostname: athanclock.local
+//     Serial.println("mDNS gestartet: athanclock.local");
+//   } else {
+//     Serial.println("Fehler beim Starten des mDNS!");
+//   }
+// }
 
-void handleSaveSettings() {
-  if (server.hasArg("plain")) {
-    String body = server.arg("plain");
-    StaticJsonDocument<1024> json;
-    DeserializationError error = deserializeJson(json, body);
+// // Verarbeite eingehende Anfragen
+// void handleClientRequests() {
+//   server.handleClient();
+// }
 
-    if (error) {
-      server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"Invalid JSON\"}");
-      return;
-    }
+// void handleSaveSettings() {
+//   if (server.hasArg("plain")) {
+//     String body = server.arg("plain");
+//     StaticJsonDocument<1024> json;
+//     DeserializationError error = deserializeJson(json, body);
 
-    // Einstellungen für jede Gebetszeit extrahieren
-    int fajrReminder = json["prayers"]["Fajr"]["reminder"];
-    int fajrAthan = json["prayers"]["Fajr"]["athan"];
+//     if (error) {
+//       server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"Invalid JSON\"}");
+//       return;
+//     }
 
-    int shurukReminder = json["prayers"]["Shuruk"]["reminder"];
-    int shurukAthan = json["prayers"]["Shuruk"]["athan"];
+//     // Einstellungen für jede Gebetszeit extrahieren
+//     int fajrReminder = json["prayers"]["Fajr"]["reminder"];
+//     int fajrAthan = json["prayers"]["Fajr"]["athan"];
 
-    int dhuhrReminder = json["prayers"]["Dhuhr"]["reminder"];
-    int dhuhrAthan = json["prayers"]["Dhuhr"]["athan"];
+//     int shurukReminder = json["prayers"]["Shuruk"]["reminder"];
+//     int shurukAthan = json["prayers"]["Shuruk"]["athan"];
 
-    int asrReminder = json["prayers"]["Asr"]["reminder"];
-    int asrAthan = json["prayers"]["Asr"]["athan"];
+//     int dhuhrReminder = json["prayers"]["Dhuhr"]["reminder"];
+//     int dhuhrAthan = json["prayers"]["Dhuhr"]["athan"];
 
-    int maghribReminder = json["prayers"]["Maghrib"]["reminder"];
-    int maghribAthan = json["prayers"]["Maghrib"]["athan"];
+//     int asrReminder = json["prayers"]["Asr"]["reminder"];
+//     int asrAthan = json["prayers"]["Asr"]["athan"];
 
-    int ishaReminder = json["prayers"]["Isha"]["reminder"];
-    int ishaAthan = json["prayers"]["Isha"]["athan"];
+//     int maghribReminder = json["prayers"]["Maghrib"]["reminder"];
+//     int maghribAthan = json["prayers"]["Maghrib"]["athan"];
 
-    // Stadt und Töne extrahieren
-    selectedCity = json["city"].as<String>();
-    athanTone = json["athan"].as<String>();
-    reminderTone = json["reminderTone"].as<String>();
+//     int ishaReminder = json["prayers"]["Isha"]["reminder"];
+//     int ishaAthan = json["prayers"]["Isha"]["athan"];
 
-    // Hier kannst du die empfangenen Einstellungen verarbeiten
-    Serial.println("Einstellungen empfangen:");
-    Serial.printf("Fajr Reminder: %d, Fajr Athan: %d\n", fajrReminder, fajrAthan);
-    Serial.printf("Shuruk Reminder: %d, Shuruk Athan: %d\n", shurukReminder, shurukAthan);
-    Serial.printf("Dhuhr Reminder: %d, Dhuhr Athan: %d\n", dhuhrReminder, dhuhrAthan);
-    Serial.printf("Asr Reminder: %d, Asr Athan: %d\n", asrReminder, asrAthan);
-    Serial.printf("Maghrib Reminder: %d, Maghrib Athan: %d\n", maghribReminder, maghribAthan);
-    Serial.printf("Isha Reminder: %d, Isha Athan: %d\n", ishaReminder, ishaAthan);
+//     // Stadt und Töne extrahieren
+//     selectedCity = json["city"].as<String>();
+//     athanTone = json["athan"].as<String>();
+//     reminderTone = json["reminderTone"].as<String>();
 
-    Serial.printf("Stadt: %s\n", selectedCity.c_str());
-    Serial.printf("Athan: %s, Reminder: %s\n", athanTone.c_str(), reminderTone.c_str());
+//     // Hier kannst du die empfangenen Einstellungen verarbeiten
+//     Serial.println("Einstellungen empfangen:");
+//     Serial.printf("Fajr Reminder: %d, Fajr Athan: %d\n", fajrReminder, fajrAthan);
+//     Serial.printf("Shuruk Reminder: %d, Shuruk Athan: %d\n", shurukReminder, shurukAthan);
+//     Serial.printf("Dhuhr Reminder: %d, Dhuhr Athan: %d\n", dhuhrReminder, dhuhrAthan);
+//     Serial.printf("Asr Reminder: %d, Asr Athan: %d\n", asrReminder, asrAthan);
+//     Serial.printf("Maghrib Reminder: %d, Maghrib Athan: %d\n", maghribReminder, maghribAthan);
+//     Serial.printf("Isha Reminder: %d, Isha Athan: %d\n", ishaReminder, ishaAthan);
 
-    // Antwort senden
-    server.send(200, "application/json", "{\"status\":\"success\"}");
-  } else {
-    server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"No data received\"}");
-  }
-}
+//     Serial.printf("Stadt: %s\n", selectedCity.c_str());
+//     Serial.printf("Athan: %s, Reminder: %s\n", athanTone.c_str(), reminderTone.c_str());
+
+//     // Antwort senden
+//     server.send(200, "application/json", "{\"status\":\"success\"}");
+//   } else {
+//     server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"No data received\"}");
+//   }
+// }
+
+// void handleSetCity() {
+//     if (server.hasArg("city")) { 
+//         String city = server.arg("city");
+//         apiUrl = "http://api.aladhan.com/v1/timingsByCity/" + String(currentDay) + "-" + String(currentMonth) + "-" + String(currentYear) + city + "&country=Germany&method=2";
+//         server.send(200, "text/plain", "City updated to " + city);
+//         Serial.println("New City: " + city);
+//     } else {
+//         server.send(400, "text/plain", "Missing 'city' parameter");
+//     }
+// }
+
+// void handleSetAthan() {
+//     if (server.hasArg("athan")) {
+//         int athanMode = server.arg("athan").toInt();
+//         for (int i = 0; i < 6; i++) {
+//             prayerAthanModes[i] = athanMode;
+//         }
+//         server.send(200, "text/plain", "Athan mode updated to " + String(athanMode));
+//         Serial.println("New Athan Mode: " + String(athanMode));
+//     } else {
+//         server.send(400, "text/plain", "Missing 'athan' parameter");
+//     }
+// }

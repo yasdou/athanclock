@@ -1,10 +1,15 @@
-#ifndef APP_H
-#define APP_H
+// #ifndef APP_H
+// #define APP_H
 
-void setupServerRoutes();
-void handleSaveSettings();
-void setupMDNS();
-void startServer();
-void handleClientRequests();
+// #include <ESP8266WebServer.h>
+// #include <ESP8266mDNS.h>
 
-#endif
+// void setupServerRoutes();
+// void handleSaveSettings();
+// void setupMDNS();
+// void startServer();
+// void handleClientRequests();
+// void handleSetAthan();
+// void handleSetCity();
+
+// #endif

@@ -8,7 +8,8 @@
 #include "display.h"
 #include "audio.h"
 #include "api.h"
-#include "app.h"
+// #include "app.h"
+#include "html.h"
 #include <TimeLib.h>
 
 
@@ -16,7 +17,6 @@
 #define TFT_CS D8
 #define TFT_RST D4
 #define TFT_DC D3
-
 
 Adafruit_ST7735 display(TFT_CS, TFT_DC, TFT_RST);
 
@@ -33,12 +33,7 @@ void showBootMessage(const char* message) {
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "pool.ntp.org", 3600, 60000);  // Zeitzone UTC+1 (Deutschland)
 
-// Variablen für das Datum
-int currentDay, currentMonth, currentYear;
-String apiUrl;  // Die dynamische URL
-
 // Variablen für Gebetszeiten
-String fajrTime, shurukTime, dhuhrTime, asrTime, maghribTime, ishaTime;
 unsigned long lastPrayerUpdate = 0;  // Zeit der letzten Gebetszeiten-Aktualisierung
 
 bool fajrReminderPlayed = false;
@@ -49,6 +44,10 @@ bool maghribReminderPlayed = false;
 bool ishaReminderPlayed = false;
 
 int lastUpdatedMinute = -1;  // Speichert die zuletzt aktualisierte Minute
+
+IPAddress staticIP(192, 168, 1, 255);  // Feste IP-Adresse
+IPAddress gateway(192, 168, 2, 1);     // Dein Router
+IPAddress subnet(255, 255, 255, 0);
 
 void setup() {
   Serial.begin(115200);
@@ -84,6 +83,7 @@ void setup() {
   // Boot-Vorgang anzeigen
   showBootMessage("WLAN verbinden...");
   // Mit WiFi verbinden
+  WiFi.config(staticIP, gateway, subnet);  // Setze die statische IP-Adresse
   WiFi.begin(ssid, password);
   Serial.print("Verbinde mit WiFi");
   while (WiFi.status() != WL_CONNECTED) {
@@ -105,15 +105,25 @@ void setup() {
   currentMonth = month(epochTime);               // Extrahiere den Monat
   currentYear = year(epochTime);                 // Extrahiere das Jahr
 
+  // // APP Endpunkte registrieren
+  // server.on("/setCity", HTTP_POST, handleSetCity);
+  // server.on("/setAthan", HTTP_POST, handleSetAthan);
+
+  // server.begin();
+  // Serial.println("HTTP server started");
+
+  // HTML Seite 
+  server.on("/", HTTP_GET, handleRoot);
+  server.on("/setCity", HTTP_POST, handleSetCity);
+  server.on("/setAthan", HTTP_POST, handleSetAthan);
+  server.begin();
+
   // Dynamische URL erstellen
-  apiUrl = "http://api.aladhan.com/v1/timingsByCity/" + String(currentDay) + "-" + String(currentMonth) + "-" + String(currentYear) + "?city=Mainz&country=Germany&method=2";
-
-  // API URL ausgeben
-  Serial.println("Dynamische API-URL: ");
-  Serial.println(apiUrl);
-
+  apiUrl = "http://api.aladhan.com/v1/timingsByCity/" + String(currentDay) + "-" + String(currentMonth) + "-" + String(currentYear) + "?city=" + String(selectedCity) + "&country=Germany&method=2";
+  
   // Gebetszeiten abrufen
   showBootMessage("Zeiten abrufen...");
+  Serial.println("Zeiten abrufen...");
   fetchPrayerTimes(fajrTime, shurukTime, dhuhrTime, asrTime, maghribTime, ishaTime, apiUrl);
   showBootMessage("Zeiten Abruf erfolgreich!");
   delay(1000);          // Fertig
@@ -126,16 +136,7 @@ void setup() {
   showBootMessage("Boot abgeschlossen!");
   Serial.println("Spiele Boot Ton ab...");
   playReminder(reminderTone);
-  // // Warte, bis die Audio-Wiedergabe abgeschlossen ist
-  // while (!myDFPlayer.available() || myDFPlayer.readType() != DFPlayerPlayFinished) {
-  //     delay(100); // Kurz warten, um die CPU nicht zu blockieren
-  // }
-  // Server starten
-  startServer();
-
-  // mDNS starten
-  setupMDNS();
-
+  
 }
 
 bool isTimeForReminder(String prayerTime, bool& reminderPlayed, int reminderMode) {
@@ -193,8 +194,12 @@ void loop() {
     lastUpdatedMinute = currentMinute;
   }
 
-  handleClientRequests(); // Verarbeite eingehende HTTP-Anfragen
-  handleSaveSettings();    // Verarbeite App-Kommunikation
+  // APP Steuerung
+  // handleClientRequests(); // Verarbeite eingehende HTTP-Anfragen
+  // handleSaveSettings();    // Verarbeite App-Kommunikation
+
+  // HTML Seite Stuerung
+  server.handleClient();
 
   // Gebetszeiten um Mitternacht aktualisieren
   if (timeClient.getHours() == 0 && timeClient.getMinutes() == 0 && millis() - lastPrayerUpdate > 60 * 1000) {

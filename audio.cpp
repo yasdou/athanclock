@@ -44,7 +44,7 @@ void playAthan(String athanTone) {
     }
 
     // Konvertiere die Athan-Ton-Auswahl (z.B. "0", "1", ..., "10") in eine Zahl
-     int athanTrack = athanTone.toInt();  // Konvertiere String zu int
+    int athanTrack = athanTone.toInt();  // Konvertiere String zu int
 
     if (athanTrack < 0 || athanTrack > 10) {
         Serial.println("Ungültiger Athan-Ton. Standardton wird verwendet.");

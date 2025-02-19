@@ -118,7 +118,7 @@ void showPrayerReminder(Adafruit_ST7735& display, String prayerName, String pray
     Serial.print("Remaining Seconds: ");
     Serial.println(remainingSeconds);
 
-    if (remainingSeconds > 0) {
+    while (remainingSeconds > 0) {
         // Countdown berechnen
         int countdownMinutes = remainingSeconds / 60;
         int countdownSeconds = remainingSeconds % 60;
@@ -149,7 +149,11 @@ void showPrayerReminder(Adafruit_ST7735& display, String prayerName, String pray
         display.getTextBounds(countdownText, 0, 0, &x1, &y1, &width, &height);
         display.setCursor((display.width() - width) / 2, 70);
         display.print(countdownText);
-    } else {
-        Serial.println("Keine verbleibende Zeit für Reminder.");
-    }
+        
+        // Berechne die verbleibende Zeit bis zum Gebet (in Sekunden)
+        int remainingSeconds = (reminderHour - currentHour) * 3600 + (reminderMinute - currentMinute) * 60 - currentSecond;
+
+        Serial.print("Remaining Seconds: ");
+        Serial.println(remainingSeconds);
+    } 
 }
