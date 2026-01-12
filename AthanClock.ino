@@ -8,7 +8,9 @@
 #include "display.h"
 #include "audio.h"
 #include "api.h"
+#include "html.h"
 #include <time.h>
+
 
 
 // Display-Pins definieren (anpassen an dein Setup)
@@ -55,6 +57,17 @@ unsigned long lastCountdownUpdate = 0;     // letzte Aktualisierung des Displays
 int lastCountdownSecondsShown = -1;        // letztes angezeigtes Sekunden-Ergebnis
 
 int lastUpdatedMinute = -1;  // Speichert die zuletzt aktualisierte Minute
+
+
+String selectedCity = "Mainz";
+int prayerReminderModes[6] = {1,1,1,1,1,1};
+int prayerAthanModes[6] = {1,1,1,1,1,1};
+String reminderTone = "01/001.mp3";
+String athanTone = "01/002.mp3";
+
+IPAddress staticIP(192, 168, 1, 255);  // Feste IP-Adresse
+IPAddress gateway(192, 168, 2, 1);     // Dein Router
+IPAddress subnet(255, 255, 255, 0);
 
 void setup() {
   Serial.begin(115200);
@@ -114,9 +127,14 @@ void setup() {
   currentMonth = ptm->tm_mon + 1;      // 0–11 -> +1 für 1–12
   currentYear  = ptm->tm_year + 1900;  // Jahre seit 1900
 
-  // Dynamische URL erstellen
-  apiUrl = "http://api.aladhan.com/v1/timingsByCity/" + String(currentDay) + "-" + String(currentMonth) + "-" + String(currentYear) + "?city=Mainz&country=Germany&method=2";
+  // HTML Seite 
+  server.on("/", HTTP_GET, handleRoot);
+  server.on("/setCity", HTTP_POST, handleSetCity);
+  server.on("/setAthan", HTTP_POST, handleSetAthan);
+  server.begin();
 
+  // Dynamische URL erstellen
+  apiUrl = "http://api.aladhan.com/v1/timingsByCity/" + String(currentDay) + "-" + String(currentMonth) + "-" + String(currentYear) + "?city=" + String(selectedCity) + "&country=Germany&method=2";
   // API URL ausgeben
   Serial.println("Dynamische API-URL: ");
   Serial.println(apiUrl);
@@ -134,18 +152,24 @@ void setup() {
   display.setTextSize(1);
   showBootMessage("Boot abgeschlossen!");
   Serial.println("Spiele Boot Ton ab...");
-  playBoot();
+  playReminder(reminderTone);
 
 
 }
 
 bool isReminderActive = false; // Gibt an, ob aktuell ein Reminder angezeigt wird
-bool isTimeForReminder(String prayerTime, bool& reminderPlayed) {
+bool isTimeForReminder(String prayerTime, bool& reminderPlayed, int reminderMode) {
+    if (reminderMode == 0) return false; // Kein Reminder für diesen Modus
+
+    String currentTime = timeClient.getFormattedTime().substring(0, 5);  // Nur HH:MM vergleichen
+    
+    // Reminder-Zeit berechnen (je nach Modus, z.B. 15 oder 30 Minuten vorher)
+    int reminderOffset = (reminderMode == 1) ? 15 : 30;
     int prayerHour = prayerTime.substring(0, 2).toInt();
     int prayerMinute = prayerTime.substring(3, 5).toInt();
 
     int reminderHour = prayerHour;
-    int reminderMinute = prayerMinute - 15;
+    int reminderMinute = prayerMinute - reminderOffset;
 
     if (reminderMinute < 0) {
         reminderMinute += 60;
@@ -155,36 +179,24 @@ bool isTimeForReminder(String prayerTime, bool& reminderPlayed) {
         }
     }
 
-    // Aktuelle Zeit in Minuten berechnen
-    int currentHour = timeClient.getHours();
-    int currentMinute = timeClient.getMinutes();
-    int currentTimeInMinutes = currentHour * 60 + currentMinute;
+    String reminderTime = (reminderHour < 10 ? "0" : "") + String(reminderHour) + ":" + (reminderMinute < 10 ? "0" : "") + String(reminderMinute);
 
-    // Reminder- und Gebetszeit in Minuten berechnen
-    int reminderTimeInMinutes = reminderHour * 60 + reminderMinute;
-    int prayerTimeInMinutes = prayerHour * 60 + prayerMinute;
-
-    // Prüfen, ob die aktuelle Zeit im gewünschten Bereich liegt
-    if (currentTimeInMinutes >= reminderTimeInMinutes && currentTimeInMinutes < prayerTimeInMinutes) {
-        if (!reminderPlayed) {
-            Serial.print("Reminder gestartet für: ");
-            Serial.println(prayerTime);
-            reminderPlayed = true;  // Verhindert mehrfaches Triggern
-        }
+    if (currentTime == reminderTime && !reminderPlayed) {
+        reminderPlayed = true;
         return true;
-    } else {
-        if (reminderPlayed) {
-            Serial.print("Reminder zurückgesetzt für: ");
-            Serial.println(prayerTime);
-        }
-        reminderPlayed = false;  // Reminder zurücksetzen, wenn außerhalb des Zeitbereichs
+    }
+
+    if (currentTime != reminderTime) {
+        reminderPlayed = false;
     }
 
     return false;
 }
 
 
-bool shouldPlayAthan(String prayerTime) {
+bool shouldPlayAthan(String prayerTime, int athanMode) {
+  if (athanMode == 0) return false; // Kein Athan für diesen Modus
+
   String currentTime = timeClient.getFormattedTime().substring(0, 5);  // Nur HH:MM vergleichen
   return (currentTime == prayerTime);
 }
@@ -265,6 +277,13 @@ void loop() {
   // NTP-Client aktualisieren
   timeClient.update();
 
+  // APP Steuerung
+  // handleClientRequests(); // Verarbeite eingehende HTTP-Anfragen
+  // handleSaveSettings();    // Verarbeite App-Kommunikation
+
+  // HTML Seite Stuerung
+  server.handleClient();
+
   // Normale Ansicht nur wenn KEIN Reminder aktiv
   if (!isReminderActive && !countdownActive) {
       int currentMinute = timeClient.getMinutes();
@@ -281,53 +300,64 @@ void loop() {
     Serial.println("Gebetszeiten um Mitternacht aktualisiert.");
   }
 
-  // Reminder-Fenster prüfen und ggf. Countdown starten
-  if (isTimeForReminder(fajrTime, fajrReminderPlayed)) {
+  // Reminder-Fenster prüfen → Countdown starten (NICHT direkt anzeigen!)
+  if (isTimeForReminder(fajrTime, fajrReminderPlayed, prayerReminderModes[0])) {
       if (!countdownActive || countdownPrayerName != "Fajr") {
           startPrayerCountdown("Fajr", fajrTime);
       }
       isReminderActive = true;
-  } else if (isTimeForReminder(shurukTime, shurukReminderPlayed)) {
+      playReminder(reminderTone);
+  } else if (isTimeForReminder(shurukTime, shurukReminderPlayed, prayerReminderModes[1])) {
       if (!countdownActive || countdownPrayerName != "Shuruk") {
           startPrayerCountdown("Shuruk", shurukTime);
       }
       isReminderActive = true;
-  } else if (isTimeForReminder(dhuhrTime, dhuhrReminderPlayed)) {
+      playReminder(reminderTone);
+  } else if (isTimeForReminder(dhuhrTime, dhuhrReminderPlayed, prayerReminderModes[2])) {
       if (!countdownActive || countdownPrayerName != "Dhuhr") {
           startPrayerCountdown("Dhuhr", dhuhrTime);
       }
       isReminderActive = true;
-  } else if (isTimeForReminder(asrTime, asrReminderPlayed)) {
+      playReminder(reminderTone);
+  } else if (isTimeForReminder(asrTime, asrReminderPlayed, prayerReminderModes[3])) {
       if (!countdownActive || countdownPrayerName != "Asr") {
           startPrayerCountdown("Asr", asrTime);
       }
       isReminderActive = true;
-  } else if (isTimeForReminder(maghribTime, maghribReminderPlayed)) {
+      playReminder(reminderTone);
+  } else if (isTimeForReminder(maghribTime, maghribReminderPlayed, prayerReminderModes[4])) {
       if (!countdownActive || countdownPrayerName != "Maghrib") {
           startPrayerCountdown("Maghrib", maghribTime);
       }
       isReminderActive = true;
-  } else if (isTimeForReminder(ishaTime, ishaReminderPlayed)) {
+      playReminder(reminderTone);
+  } else if (isTimeForReminder(ishaTime, ishaReminderPlayed, prayerReminderModes[5])) {
       if (!countdownActive || countdownPrayerName != "Isha") {
           startPrayerCountdown("Isha", ishaTime);
       }
       isReminderActive = true;
+      playReminder(reminderTone);
   } else {
       isReminderActive = false;
-      countdownActive = false; // falls Fenster vorbei ist
+      countdownActive = false;  // Fenster vorbei → Countdown stoppen
   }
 
   // Countdown-Anzeige aktualisieren (wenn aktiv)
   updatePrayerCountdown();
 
 
-  // Athan abspielen, wenn es Zeit ist
-  if (shouldPlayAthan(fajrTime) || shouldPlayAthan(shurukTime) || shouldPlayAthan(dhuhrTime) || shouldPlayAthan(asrTime) || shouldPlayAthan(maghribTime) || shouldPlayAthan(ishaTime)) {
-    playAthan();
-  }
+    if (shouldPlayAthan(fajrTime, prayerAthanModes[0]) ||
+      shouldPlayAthan(shurukTime, prayerAthanModes[1]) ||
+      shouldPlayAthan(dhuhrTime, prayerAthanModes[2]) ||
+      shouldPlayAthan(asrTime, prayerAthanModes[3]) ||
+      shouldPlayAthan(maghribTime, prayerAthanModes[4]) ||
+      shouldPlayAthan(ishaTime, prayerAthanModes[5])) {
+    playAthan(athanTone);
+    }
 
   delay(1000);  // 1-Sekunden-Intervall
 }
+
 
 
 

@@ -1,20 +1,18 @@
 #include "audio.h"
+#include "config.h"
+
 
 // Definiere die Pins für die serielle Kommunikation mit dem DFPlayer Mini
 #define RX_PIN D1 // RX des DFPlayer Mini
 #define TX_PIN D2 // TX des DFPlayer Mini
-
 // Globale Variablen
 SoftwareSerial mySerial(RX_PIN, TX_PIN); // SoftwareSerial für den DFPlayer Mini
 DFRobotDFPlayerMini myDFPlayer;
 bool isAudioInitialized = false; // Zustand der Audio-Initialisierung
-
 void setupAudio() {
     const int maxRetries = 3; // Maximale Anzahl von Versuchen
     int retryCount = 0;
-
     mySerial.begin(9600); // DFPlayer Mini arbeitet mit 9600 Baud
-
     while (retryCount < maxRetries) {
         Serial.printf("Versuche DFPlayer Mini zu initialisieren... (Versuch %d von %d)\n", retryCount + 1, maxRetries);
         if (myDFPlayer.begin(mySerial)) {
@@ -27,7 +25,6 @@ void setupAudio() {
         retryCount++;
         delay(1000); // Warte 1 Sekunde vor dem nächsten Versuch
     }
-
     if (!isAudioInitialized) {
         showBootMessage("Fehler: Kein Adhan bis reboot.");
         delay(3000);
@@ -35,32 +32,44 @@ void setupAudio() {
     }
 }
 
-void playBoot() {
-    if (!isAudioInitialized) {
-        Serial.println("DFPlayer Mini nicht verfügbar. Kein Boot-Ton.");
-        return;
-    }
-    myDFPlayer.volume(5);
-    Serial.println("Spiele Boot ab...");
-    myDFPlayer.play(3); // Spiele die zweite Datei auf der SD-Karte
-}
-
-void playAthan() {
+void playAthan(String athanTone) {
     if (!isAudioInitialized) {
         Serial.println("DFPlayer Mini nicht verfügbar. Kein Athan.");
         return;
     }
-    myDFPlayer.volume(15);
-    Serial.println("Spiele Athan ab...");
-    myDFPlayer.play(2); // Spiele die erste Datei auf der SD-Karte
+
+    // Konvertiere die Athan-Ton-Auswahl (z.B. "0", "1", ..., "10") in eine Zahl
+    int athanTrack = athanTone.toInt();  // Konvertiere String zu int
+
+    if (athanTrack < 0 || athanTrack > 10) {
+        Serial.println("Ungültiger Athan-Ton. Standardton wird verwendet.");
+        athanTrack = 1;  // Standardton, wenn der Wert ungültig ist
+    }
+
+    myDFPlayer.volume(15);  // Lautstärke auf 15 setzen
+    Serial.print("Spiele Athan-Ton ab: ");
+    Serial.println(athanTrack);
+
+    myDFPlayer.play(athanTrack + 1);  // Spiele den Track (DFPlayer verwendet 1-basierten Index)
 }
 
-void playReminder() {
+void playReminder(String reminderTone) {
     if (!isAudioInitialized) {
         Serial.println("DFPlayer Mini nicht verfügbar. Kein Reminder.");
         return;
     }
-    myDFPlayer.volume(5);
-    Serial.println("Spiele Reminder ab...");
-    myDFPlayer.play(3); // Spiele die dritte Datei auf der SD-Karte
+
+    // Konvertiere die Athan-Ton-Auswahl (z.B. "0", "1", ..., "10") in eine Zahl
+    int reminderTrack = reminderTone.toInt();  // Konvertiere String zu int
+
+    if (reminderTrack < 0 || reminderTrack > 10) {
+        Serial.println("Ungültiger Athan-Ton. Standardton wird verwendet.");
+        reminderTrack = 1;  // Standardton, wenn der Wert ungültig ist
+    }
+
+    myDFPlayer.volume(15);  // Lautstärke auf 15 setzen
+    Serial.print("Spiele Reminder-Ton ab: ");
+    Serial.println(reminderTrack);
+
+    myDFPlayer.play(reminderTrack + 1);  // Spiele den Track (DFPlayer verwendet 1-basierten Index)
 }
