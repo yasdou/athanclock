@@ -8,6 +8,6 @@ extern Adafruit_ST7735 display;
 // Funktionen
 void setupDisplay(Adafruit_ST7735& display);
 void updateDisplay(Adafruit_ST7735& display, String fajr, String shuruk, String dhuhr, String asr, String maghrib, String isha, String time);
-void showPrayerReminder(Adafruit_ST7735& display, String prayerName, String prayerTime);
+void showPrayerReminder(Adafruit_ST7735& display, String prayerName, unsigned long remainingSeconds);;
 
 #endif

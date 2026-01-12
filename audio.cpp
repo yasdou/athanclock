@@ -40,9 +40,9 @@ void playBoot() {
         Serial.println("DFPlayer Mini nicht verfügbar. Kein Boot-Ton.");
         return;
     }
-    myDFPlayer.volume(30);
+    myDFPlayer.volume(5);
     Serial.println("Spiele Boot ab...");
-    myDFPlayer.play(2); // Spiele die zweite Datei auf der SD-Karte
+    myDFPlayer.play(3); // Spiele die zweite Datei auf der SD-Karte
 }
 
 void playAthan() {
@@ -52,7 +52,7 @@ void playAthan() {
     }
     myDFPlayer.volume(15);
     Serial.println("Spiele Athan ab...");
-    myDFPlayer.play(1); // Spiele die erste Datei auf der SD-Karte
+    myDFPlayer.play(2); // Spiele die erste Datei auf der SD-Karte
 }
 
 void playReminder() {
@@ -60,7 +60,7 @@ void playReminder() {
         Serial.println("DFPlayer Mini nicht verfügbar. Kein Reminder.");
         return;
     }
-    myDFPlayer.volume(30);
+    myDFPlayer.volume(5);
     Serial.println("Spiele Reminder ab...");
-    myDFPlayer.play(2); // Spiele die dritte Datei auf der SD-Karte
+    myDFPlayer.play(3); // Spiele die dritte Datei auf der SD-Karte
 }

@@ -73,79 +73,40 @@ void updateDisplay(Adafruit_ST7735& display, String fajr, String shuruk, String 
     display.print(formattedTime);
 }
 
-void showPrayerReminder(Adafruit_ST7735& display, String prayerName, String prayerTime) {
-    Serial.println("Starte showPrayerReminder...");
+// Neuer, sauberer Reminder mit eigenem Countdown-Status
+void showPrayerReminder(Adafruit_ST7735& display, String prayerName, unsigned long remainingSeconds) {
+    // remainingSeconds kommt fertig berechnet aus athanclock.ino
 
-    // Gebetszeit extrahieren
-    int prayerHour = prayerTime.substring(0, 2).toInt();
-    int prayerMinute = prayerTime.substring(3, 5).toInt();
+    int countdownMinutes = remainingSeconds / 60;
+    int countdownSeconds = remainingSeconds % 60;
 
-    // Reminder-Zeit berechnen (15 Minuten vor der Gebetszeit)
-    int reminderMinute = prayerMinute - 15;
-    int reminderHour = prayerHour;
-    if (reminderMinute < 0) {
-        reminderMinute += 60;
-        reminderHour -= 1;
-        if (reminderHour < 0) {
-            reminderHour = 23;
-        }
-    }
+    char countdownText[9];
+    sprintf(countdownText, "%02d:%02d", countdownMinutes, countdownSeconds);
 
-    // Aktuelle Zeit abrufen
-    int currentHour = timeClient.getHours();
-    int currentMinute = timeClient.getMinutes();
-    int currentSecond = timeClient.getSeconds();
+    // Nur den unteren Bereich für den Countdown löschen, nicht den ganzen Screen
+    // Oben könntest du z.B. den Gebetsnamen einmalig zeichnen
+    display.fillRect(0, 60, display.width(), 40, ST77XX_WHITE);
 
-    Serial.print("Aktuelle Zeit: ");
-    Serial.print(currentHour);
-    Serial.print(":");
-    Serial.print(currentMinute);
-    Serial.print(":");
-    Serial.println(currentSecond);
+    // Gebetsname (oben, nur Textbereich – wird bei jedem Aufruf neu geschrieben,
+    // flackert aber wenig, weil nur kleiner Bereich)
+    display.setTextSize(2);
+    display.setTextColor(ST77XX_BLACK);
+    int16_t x1, y1;
+    uint16_t w, h;
+    display.getTextBounds(prayerName, 0, 0, &x1, &y1, &w, &h);
+    display.setCursor((display.width() - w) / 2, 20);
+    display.print(prayerName);
 
-    // Berechnung der verbleibenden Sekunden bis zur Gebetszeit
-    int remainingSeconds = (prayerHour - currentHour) * 3600 + (prayerMinute - currentMinute) * 60 - currentSecond;
+    // „in“ Text
+    display.setTextSize(1);
+    display.getTextBounds("in", 0, 0, &x1, &y1, &w, &h);
+    display.setCursor((display.width() - w) / 2, 45);
+    display.print("in");
 
-    // Prüfen, ob sich die aktuelle Zeit im Reminder-Fenster befindet
-    int reminderStartSeconds = (reminderHour - currentHour) * 3600 + (reminderMinute - currentMinute) * 60 - currentSecond;
-
-    if (reminderStartSeconds <= 0 && remainingSeconds > 0) {
-        // Countdown berechnen
-        int countdownMinutes = remainingSeconds / 60;
-        int countdownSeconds = remainingSeconds % 60;
-
-        String countdownText = (countdownMinutes < 10 ? "0" : "") + String(countdownMinutes) + ":" + 
-                               (countdownSeconds < 10 ? "0" : "") + String(countdownSeconds);
-
-        // Display löschen und Reminder anzeigen
-        display.fillScreen(ST77XX_WHITE);
-        display.setTextSize(2);
-        int16_t x1, y1;
-        uint16_t width, height;
-
-        // Gebetsname anzeigen
-        display.getTextBounds(prayerName, 0, 0, &x1, &y1, &width, &height);
-        display.setCursor((display.width() - width) / 2, 20);
-        display.print(prayerName);
-
-        // "In" anzeigen
-        display.setTextSize(1);
-        display.setCursor((display.width() - 50) / 2, 50);
-        display.print("in");
-
-        // Countdown anzeigen
-        display.setTextSize(2);
-        display.getTextBounds(countdownText, 0, 0, &x1, &y1, &width, &height);
-        display.setCursor((display.width() - width) / 2, 70);
-        display.print(countdownText);
-
-        Serial.print("Countdown bis zum Gebet: ");
-        Serial.println(countdownText);
-
-    } else if (remainingSeconds <= 0) {
-        Serial.println("Gebetszeit erreicht oder überschritten.");
-    } else {
-        Serial.println("Reminder noch nicht aktiv.");
-    }
+    // Countdown in groß unten
+    display.setTextSize(2);
+    display.getTextBounds(countdownText, 0, 0, &x1, &y1, &w, &h);
+    display.setCursor((display.width() - w) / 2, 70);
+    display.print(countdownText);
 }
 

@@ -8,7 +8,7 @@
 #include "display.h"
 #include "audio.h"
 #include "api.h"
-#include <TimeLib.h>
+#include <time.h>
 
 
 // Display-Pins definieren (anpassen an dein Setup)
@@ -46,6 +46,13 @@ bool dhuhrReminderPlayed = false;
 bool asrReminderPlayed = false;
 bool maghribReminderPlayed = false;
 bool ishaReminderPlayed = false;
+
+// Countdown-Status für Reminder
+bool countdownActive = false;
+String countdownPrayerName = "";
+unsigned long countdownEndMillis = 0;      // Zeitpunkt, wann das Gebet beginnt
+unsigned long lastCountdownUpdate = 0;     // letzte Aktualisierung des Displays
+int lastCountdownSecondsShown = -1;        // letztes angezeigtes Sekunden-Ergebnis
 
 int lastUpdatedMinute = -1;  // Speichert die zuletzt aktualisierte Minute
 
@@ -97,12 +104,15 @@ void setup() {
   // NTP-Client starten
   timeClient.begin();
 
-  // Aktuelles Datum ermitteln
   timeClient.update();
-  time_t epochTime = timeClient.getEpochTime();  // Zeit in Sekunden seit 1970
-  currentDay = day(epochTime);                   // Extrahiere den Tag
-  currentMonth = month(epochTime);               // Extrahiere den Monat
-  currentYear = year(epochTime);                 // Extrahiere das Jahr
+  unsigned long epochTime = timeClient.getEpochTime();  // Sekunden seit 1970 (Unix time)
+
+  time_t rawTime = (time_t)epochTime;
+  struct tm *ptm = gmtime(&rawTime);   // UTC-Struktur aus epochTime
+
+  currentDay   = ptm->tm_mday;         // 1–31
+  currentMonth = ptm->tm_mon + 1;      // 0–11 -> +1 für 1–12
+  currentYear  = ptm->tm_year + 1900;  // Jahre seit 1900
 
   // Dynamische URL erstellen
   apiUrl = "http://api.aladhan.com/v1/timingsByCity/" + String(currentDay) + "-" + String(currentMonth) + "-" + String(currentYear) + "?city=Mainz&country=Germany&method=2";
@@ -125,10 +135,7 @@ void setup() {
   showBootMessage("Boot abgeschlossen!");
   Serial.println("Spiele Boot Ton ab...");
   playBoot();
-  // // Warte, bis die Audio-Wiedergabe abgeschlossen ist
-  // while (!myDFPlayer.available() || myDFPlayer.readType() != DFPlayerPlayFinished) {
-  //     delay(100); // Kurz warten, um die CPU nicht zu blockieren
-  // }
+
 
 }
 
@@ -182,17 +189,90 @@ bool shouldPlayAthan(String prayerTime) {
   return (currentTime == prayerTime);
 }
 
+// Startet den 15-Minuten-Countdown bis zu einem Gebet
+void startPrayerCountdown(String prayerName, String prayerTime) {
+    int prayerHour = prayerTime.substring(0, 2).toInt();
+    int prayerMinute = prayerTime.substring(3, 5).toInt();
+
+    // Zeitpunkt des Gebets heute in Sekunden seit Mitternacht
+    unsigned long prayerSeconds = prayerHour * 3600UL + prayerMinute * 60UL;
+
+    // aktuelle Zeit aus timeClient
+    int currentHour = timeClient.getHours();
+    int currentMinute = timeClient.getMinutes();
+    int currentSecond = timeClient.getSeconds();
+    unsigned long nowSeconds = currentHour * 3600UL + currentMinute * 60UL + currentSecond;
+
+    // Restsekunden bis zum Gebet
+    long remainingSeconds = (long)prayerSeconds - (long)nowSeconds;
+
+    if (remainingSeconds <= 0) {
+        // schon vorbei oder genau jetzt, kein Countdown
+        countdownActive = false;
+        return;
+    }
+
+    // 15-Minuten-Fenster: wir starten nur, wenn <= 15 Minuten übrig sind
+    if (remainingSeconds > 15 * 60) {
+        countdownActive = false;
+        return;
+    }
+
+    display.fillScreen(ST77XX_WHITE);
+    countdownPrayerName = prayerName;
+    countdownEndMillis = millis() + (unsigned long)remainingSeconds * 1000UL;
+    lastCountdownUpdate = 0;
+    lastCountdownSecondsShown = -1;
+    countdownActive = true;
+
+    Serial.print("Countdown gestartet für ");
+    Serial.print(prayerName);
+    Serial.print(" (");
+    Serial.print(remainingSeconds);
+    Serial.println(" Sekunden bis zum Gebet)");
+}
+
+void updatePrayerCountdown() {
+    if (!countdownActive) return;
+
+    unsigned long now = millis();
+    // nur alle 500ms updaten
+    if (now - lastCountdownUpdate < 500) return;
+    lastCountdownUpdate = now;
+
+    // verbleibende Millisekunden
+    long remainingMillis = (long)countdownEndMillis - (long)now;
+    if (remainingMillis <= 0) {
+        countdownActive = false;
+        isReminderActive = false;  // ← NEU: Reminder auch deaktivieren
+        Serial.print("Countdown fertig für ");
+        Serial.println(countdownPrayerName);
+        return;
+    }
+
+    int remainingSeconds = remainingMillis / 1000;
+    if (remainingSeconds == lastCountdownSecondsShown) {
+        // Sekundenwert hat sich nicht geändert → Display nicht anfassen
+        return;
+    }
+    lastCountdownSecondsShown = remainingSeconds;
+
+    // Reminder-Screen zeichnen (nur Teilbereiche, kein kompletter clearScreen im Loop)
+    showPrayerReminder(display, countdownPrayerName, (unsigned long)remainingSeconds);
+}
+
 void loop() {
   // NTP-Client aktualisieren
   timeClient.update();
 
-   if (!isReminderActive) {
-        int currentMinute = timeClient.getMinutes();
-        if (currentMinute != lastUpdatedMinute) {
-            updateDisplay(display, fajrTime, shurukTime, dhuhrTime, asrTime, maghribTime, ishaTime, timeClient.getFormattedTime());
-            lastUpdatedMinute = currentMinute;
-        }
-    }
+  // Normale Ansicht nur wenn KEIN Reminder aktiv
+  if (!isReminderActive && !countdownActive) {
+      int currentMinute = timeClient.getMinutes();
+      if (currentMinute != lastUpdatedMinute) {
+          updateDisplay(display, fajrTime, shurukTime, dhuhrTime, asrTime, maghribTime, ishaTime, timeClient.getFormattedTime());
+          lastUpdatedMinute = currentMinute;
+      }
+  }
 
   // Gebetszeiten um Mitternacht aktualisieren
   if (timeClient.getHours() == 0 && timeClient.getMinutes() == 0 && millis() - lastPrayerUpdate > 60 * 1000) {
@@ -201,121 +281,53 @@ void loop() {
     Serial.println("Gebetszeiten um Mitternacht aktualisiert.");
   }
 
-  // Reminder für alle Gebetszeiten prüfen
-  // Gebetscountdown t -15 min
-    if (isTimeForReminder(fajrTime, fajrReminderPlayed)) {
-        isReminderActive = true; // Reminder aktiv
-        showPrayerReminder(display, "Fajr", fajrTime);
-    } else if (isTimeForReminder(shurukTime, shurukReminderPlayed)) {
-        isReminderActive = true;
-        showPrayerReminder(display, "Shuruk", shurukTime);
-    } else if (isTimeForReminder(dhuhrTime, dhuhrReminderPlayed)) {
-        isReminderActive = true;
-        showPrayerReminder(display, "Dhuhr", dhuhrTime);
-    } else if (isTimeForReminder(asrTime, asrReminderPlayed)) {
-        isReminderActive = true;
-        showPrayerReminder(display, "Asr", asrTime);
-    } else if (isTimeForReminder(maghribTime, maghribReminderPlayed)) {
-        isReminderActive = true;
-        showPrayerReminder(display, "Maghrib", maghribTime);
-    } else if (isTimeForReminder(ishaTime, ishaReminderPlayed)) {
-        isReminderActive = true;
-        showPrayerReminder(display, "Isha", ishaTime);
-    } else {
-        // Kein Reminder aktiv
-        isReminderActive = false;
-    }
+  // Reminder-Fenster prüfen und ggf. Countdown starten
+  if (isTimeForReminder(fajrTime, fajrReminderPlayed)) {
+      if (!countdownActive || countdownPrayerName != "Fajr") {
+          startPrayerCountdown("Fajr", fajrTime);
+      }
+      isReminderActive = true;
+  } else if (isTimeForReminder(shurukTime, shurukReminderPlayed)) {
+      if (!countdownActive || countdownPrayerName != "Shuruk") {
+          startPrayerCountdown("Shuruk", shurukTime);
+      }
+      isReminderActive = true;
+  } else if (isTimeForReminder(dhuhrTime, dhuhrReminderPlayed)) {
+      if (!countdownActive || countdownPrayerName != "Dhuhr") {
+          startPrayerCountdown("Dhuhr", dhuhrTime);
+      }
+      isReminderActive = true;
+  } else if (isTimeForReminder(asrTime, asrReminderPlayed)) {
+      if (!countdownActive || countdownPrayerName != "Asr") {
+          startPrayerCountdown("Asr", asrTime);
+      }
+      isReminderActive = true;
+  } else if (isTimeForReminder(maghribTime, maghribReminderPlayed)) {
+      if (!countdownActive || countdownPrayerName != "Maghrib") {
+          startPrayerCountdown("Maghrib", maghribTime);
+      }
+      isReminderActive = true;
+  } else if (isTimeForReminder(ishaTime, ishaReminderPlayed)) {
+      if (!countdownActive || countdownPrayerName != "Isha") {
+          startPrayerCountdown("Isha", ishaTime);
+      }
+      isReminderActive = true;
+  } else {
+      isReminderActive = false;
+      countdownActive = false; // falls Fenster vorbei ist
+  }
+
+  // Countdown-Anzeige aktualisieren (wenn aktiv)
+  updatePrayerCountdown();
+
 
   // Athan abspielen, wenn es Zeit ist
   if (shouldPlayAthan(fajrTime) || shouldPlayAthan(shurukTime) || shouldPlayAthan(dhuhrTime) || shouldPlayAthan(asrTime) || shouldPlayAthan(maghribTime) || shouldPlayAthan(ishaTime)) {
     playAthan();
   }
 
-  // // Teste den Reminder für Fajr-Gebet mit simulierten Zeiten
-  //   testReminder(display, "Fajr", "05:30", 5, 15, 0);  // Simulierte Zeit: 05:15:00
-  //   delay(5000);  // Warten, bevor ein neuer Test durchgeführt wird
-  //   testReminder(display, "Fajr", "05:30", 5, 20, 0);  // Simulierte Zeit: 05:20:00
-  //   delay(5000);  // Warten, bevor ein neuer Test durchgeführt wird
-  //   testReminder(display, "Fajr", "05:30", 5, 30, 0);  // Simulierte Zeit: 05:30:00
-  //   delay(5000);  // Warten, bevor ein neuer Test durchgeführt wird
-  //   testReminder(display, "Fajr", "05:30", 5, 35, 0);  // Simulierte Zeit: 05:35:00
-  //   delay(5000);  // Warten, bevor ein neuer Test durchgeführt wird
-
   delay(1000);  // 1-Sekunden-Intervall
 }
 
-// void testReminder(Adafruit_ST7735& display, String prayerName, String prayerTime, int simulatedHour, int simulatedMinute, int simulatedSecond) {
-//     Serial.println("== Starte Reminder-Test ==");
-    
-//     // Gebetszeit extrahieren
-//     int prayerHour = prayerTime.substring(0, 2).toInt();
-//     int prayerMinute = prayerTime.substring(3, 5).toInt();
-
-//     // Reminder-Zeit berechnen (15 Minuten vor der Gebetszeit)
-//     int reminderMinute = prayerMinute - 15;
-//     int reminderHour = prayerHour;
-//     if (reminderMinute < 0) {
-//         reminderMinute += 60;
-//         reminderHour -= 1;
-//         if (reminderHour < 0) {
-//             reminderHour = 23;
-//         }
-//     }
-
-//     Serial.print("Reminder-Zeit: ");
-//     Serial.print(reminderHour);
-//     Serial.print(":");
-//     Serial.println(reminderMinute);
-
-//     // Simulierte Zeit
-//     Serial.print("Simulierte Zeit: ");
-//     Serial.print(simulatedHour);
-//     Serial.print(":");
-//     Serial.print(simulatedMinute);
-//     Serial.print(":");
-//     Serial.println(simulatedSecond);
-
-//     // Berechnung der verbleibenden Sekunden bis zum Gebet
-//     int remainingSeconds = (prayerHour - simulatedHour) * 3600 + (prayerMinute - simulatedMinute) * 60 - simulatedSecond;
-
-//     if (remainingSeconds <= 15 * 60 && remainingSeconds > 0) { 
-//         // Countdown berechnen
-//         int countdownMinutes = remainingSeconds / 60;
-//         int countdownSeconds = remainingSeconds % 60;
-
-//         String countdownText = (countdownMinutes < 10 ? "0" : "") + String(countdownMinutes) + ":" + 
-//                                (countdownSeconds < 10 ? "0" : "") + String(countdownSeconds);
-
-//         Serial.print("Countdown bis zum Gebet: ");
-//         Serial.println(countdownText);
-
-//         // Reminder anzeigen
-//         display.fillScreen(ST77XX_WHITE);
-//         display.setTextSize(2);
-//         int16_t x1, y1;
-//         uint16_t width, height;
-
-//         // Gebetsname anzeigen
-//         display.getTextBounds(prayerName, 0, 0, &x1, &y1, &width, &height);
-//         display.setCursor((display.width() - width) / 2, 20);
-//         display.print(prayerName);
-
-//         // "In" anzeigen
-//         display.setTextSize(1);
-//         display.setCursor((display.width() - 50) / 2, 50);
-//         display.print("in");
-
-//         // Countdown anzeigen
-//         display.setTextSize(2);
-//         display.getTextBounds(countdownText, 0, 0, &x1, &y1, &width, &height);
-//         display.setCursor((display.width() - width) / 2, 70);
-//         display.print(countdownText);
-
-//     } else if (remainingSeconds <= 0) {
-//         Serial.println("Gebetszeit erreicht oder überschritten.");
-//     } else {
-//         Serial.println("Reminder noch nicht aktiv.");
-//     }
-// }
 
 
