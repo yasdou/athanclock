@@ -10,6 +10,8 @@
 #include "api.h"
 #include "html.h"
 #include <time.h>
+#include "buttons.h"
+#include "menu.h"
 
 
 
@@ -62,8 +64,8 @@ int lastUpdatedMinute = -1;  // Speichert die zuletzt aktualisierte Minute
 String selectedCity = "Mainz";
 int prayerReminderModes[6] = {1,1,1,1,1,1};
 int prayerAthanModes[6] = {1,1,1,1,1,1};
-String reminderTone = "01/001.mp3";
-String athanTone = "01/002.mp3";
+String reminderTone = "0";
+String athanTone = "0";
 
 IPAddress staticIP(192, 168, 1, 255);  // Feste IP-Adresse
 IPAddress gateway(192, 168, 2, 1);     // Dein Router
@@ -144,6 +146,10 @@ void setup() {
   fetchPrayerTimes(fajrTime, shurukTime, dhuhrTime, asrTime, maghribTime, ishaTime, apiUrl);
   showBootMessage("Zeiten Abruf erfolgreich!");
   delay(1000);          // Fertig
+
+  // Buttons initialisieren
+  setupButtons();
+  showBootMessage("Buttons init...");
 
   // Athan abspielen direkt nach dem Start
   delay(1000);                       // Fertig
@@ -284,6 +290,16 @@ void loop() {
   // HTML Seite Stuerung
   server.handleClient();
 
+    // Buttons abfragen und Aktionen durchführen
+  handleButtons();
+
+  if (currentMode == MODE_HOME) {
+        if (!isReminderActive && !countdownActive) {
+            // ... Gebetszeiten anzeigen ...
+        }
+        updatePrayerCountdown();
+    }
+
   // Normale Ansicht nur wenn KEIN Reminder aktiv
   if (!isReminderActive && !countdownActive) {
       int currentMinute = timeClient.getMinutes();
@@ -355,7 +371,7 @@ void loop() {
     playAthan(athanTone);
     }
 
-  delay(1000);  // 1-Sekunden-Intervall
+  delay(50);  // 1-Sekunden-Intervall
 }
 
 

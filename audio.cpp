@@ -50,7 +50,8 @@ void playAthan(String athanTone) {
     Serial.print("Spiele Athan-Ton ab: ");
     Serial.println(athanTrack);
 
-    myDFPlayer.play(athanTrack + 1);  // Spiele den Track (DFPlayer verwendet 1-basierten Index)
+      // ZU ORDNER 01 WECHSELN
+    myDFPlayer.playFolder(1, athanTrack+1);  // Ordner 01, Track X
 }
 
 void playReminder(String reminderTone) {
@@ -71,5 +72,6 @@ void playReminder(String reminderTone) {
     Serial.print("Spiele Reminder-Ton ab: ");
     Serial.println(reminderTrack);
 
-    myDFPlayer.play(reminderTrack + 1);  // Spiele den Track (DFPlayer verwendet 1-basierten Index)
+    // ZU ORDNER 02 WECHSELN
+    myDFPlayer.playFolder(2, reminderTrack+1);  // Ordner 02, Track X
 }
