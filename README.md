@@ -29,3 +29,16 @@ Plans for the future:
 Vision: 
 1. Make a lightweight and cheap athan clock that looks nice and is of benefit to its users
 2. Build and sell it to mosques so they can resell it, so they have an income
+
+
+Pin Belegung:
+
+D0 -> Button down
+D1 -> DF Player Mini TX
+D2 -> DF Player Mini RX
+D3 -> Display A0
+D4 -> Display Reset
+D5 -> Display SCK
+D6 -> Button up
+D7 -> Display SDA
+D8 -> Display CS

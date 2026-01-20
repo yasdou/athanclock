@@ -160,7 +160,9 @@ void setup() {
   Serial.println("Spiele Boot Ton ab...");
   playReminder(reminderTone);
 
-
+  // STARTE IM HOME-MODUS
+    currentMode = MODE_HOME;
+    Serial.println("Start: MODE_HOME");
 }
 
 bool isReminderActive = false; // Gibt an, ob aktuell ein Reminder angezeigt wird
@@ -293,11 +295,19 @@ void loop() {
     // Buttons abfragen und Aktionen durchführen
   handleButtons();
 
-  if (currentMode == MODE_HOME) {
-        if (!isReminderActive && !countdownActive) {
-            // ... Gebetszeiten anzeigen ...
+    // DISPLAY-UPDATE NUR IM HOME-MODUS
+    if (currentMode == MODE_HOME && !isReminderActive && !countdownActive) {
+        int currentMinute = timeClient.getMinutes();
+        if (currentMinute != lastUpdatedMinute) {
+            updateDisplay(display, fajrTime, shurukTime, dhuhrTime, asrTime, maghribTime, ishaTime, timeClient.getFormattedTime());
+            lastUpdatedMinute = currentMinute;
         }
+    }
+    
+    // Countdown NUR im HOME-MODUS
+    if (currentMode == MODE_HOME) {
         updatePrayerCountdown();
+        // Reminder-Checks hier...
     }
 
   // Normale Ansicht nur wenn KEIN Reminder aktiv

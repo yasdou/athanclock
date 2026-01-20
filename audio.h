@@ -17,4 +17,8 @@ void playAthan(String athanTone);
 void playReminder(String reminderTone);
 void showBootMessage(const char* message);
 
+// NEU: Fehlende Funktionen
+bool isAudioPlaying();
+void stopAudio();
+
 #endif // AUDIO_H

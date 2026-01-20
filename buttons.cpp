@@ -14,31 +14,39 @@ void handleButtons() {
     unsigned long now = millis();
     if (now - lastBtnPress < 50) return;  // Debounce
     
-    bool btnUp = !digitalRead(BTN_VOL_UP);
-    bool btnDn = !digitalRead(BTN_VOL_DN);
+    bool btnUpPressed = !digitalRead(BTN_VOL_UP);
+    bool btnDnPressed = !digitalRead(BTN_VOL_DN);
     
-    if (btnUp || btnDn) {
-        lastBtnPress = now;
-        
-        // Audio stoppen bei beliebigem Button
+    // WICHTIG: Nur bei BUTTON-DRÜCKEN handeln
+    if (btnUpPressed || btnDnPressed) {
+        // AUDIO STOPPEN bei jedem Drücken
         if (isAudioPlaying()) {
             stopAudio();
             return;
         }
         
-        if (btnPressTime == 0) btnPressTime = now;
-        
-        // Lange Taste (2s) → Menü
-        if (btnUp && (now - btnPressTime > 2000)) {
+        // Lange Taste nur für BTN_VOL_UP!
+        if (btnUpPressed && (now - btnPressTime > 2000)) {
             toggleMenu();
             btnPressTime = 0;
+            return;
+        }
+        
+        // Button gerade gedrückt (btnPressTime == 0)
+        if (btnPressTime == 0) {
+            btnPressTime = now;
         }
     } else {
+        // LOSGELASSEN → Kurzdruck
         if (btnPressTime > 0) {
             unsigned long duration = now - btnPressTime;
-            if (duration < 2000) {
-                if (!digitalRead(BTN_VOL_UP)) onShortPressUp();
-                if (!digitalRead(BTN_VOL_DN)) onShortPressDown();
+            if (duration < 2000) {  // < 2s = Kurz
+                if (digitalRead(BTN_VOL_UP) == HIGH) {
+                    onShortPressUp();
+                }
+                if (digitalRead(BTN_VOL_DN) == HIGH) {
+                    onShortPressDown();
+                }
             }
             btnPressTime = 0;
         }

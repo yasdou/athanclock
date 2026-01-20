@@ -16,5 +16,8 @@ void scrollMenu();
 void confirmSelection();
 void onShortPressUp();
 void onShortPressDown();
+void volumeUp();
+void volumeDown();
+void saveAndExit();
 
 #endif

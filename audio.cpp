@@ -9,6 +9,8 @@
 SoftwareSerial mySerial(RX_PIN, TX_PIN); // SoftwareSerial für den DFPlayer Mini
 DFRobotDFPlayerMini myDFPlayer;
 bool isAudioInitialized = false; // Zustand der Audio-Initialisierung
+bool audioCurrentlyPlaying = false;
+
 void setupAudio() {
     const int maxRetries = 3; // Maximale Anzahl von Versuchen
     int retryCount = 0;
@@ -52,6 +54,7 @@ void playAthan(String athanTone) {
 
       // ZU ORDNER 01 WECHSELN
     myDFPlayer.playFolder(1, athanTrack+1);  // Ordner 01, Track X
+    audioCurrentlyPlaying = true;
 }
 
 void playReminder(String reminderTone) {
@@ -74,4 +77,16 @@ void playReminder(String reminderTone) {
 
     // ZU ORDNER 02 WECHSELN
     myDFPlayer.playFolder(2, reminderTrack+1);  // Ordner 02, Track X
+    audioCurrentlyPlaying = true;
+}
+
+bool isAudioPlaying() {
+    return audioCurrentlyPlaying;
+}
+
+void stopAudio() {
+    if (!isAudioInitialized) return;
+    myDFPlayer.stop();
+    audioCurrentlyPlaying = false;
+    Serial.println("Audio gestoppt");
 }
