@@ -39,6 +39,7 @@ NTPClient timeClient(ntpUDP, "pool.ntp.org", 3600, 60000);  // Zeitzone UTC+1 (D
 // Variablen für das Datum
 int currentDay, currentMonth, currentYear;
 String apiUrl;  // Die dynamische URL
+String MAWAQIT_URL;
 
 // Variablen für Gebetszeiten
 String fajrTime, shurukTime, dhuhrTime, asrTime, maghribTime, ishaTime;
@@ -136,14 +137,16 @@ void setup() {
   server.begin();
 
   // Dynamische URL erstellen
-  apiUrl = "http://api.aladhan.com/v1/timingsByCity/" + String(currentDay) + "-" + String(currentMonth) + "-" + String(currentYear) + "?city=" + String(selectedCity) + "&country=Germany&method=2";
+  //apiUrl = "http://api.aladhan.com/v1/timingsByCity/" + String(currentDay) + "-" + String(currentMonth) + "-" + String(currentYear) + "?city=" + String(selectedCity) + "&country=Germany&method=2";
   // API URL ausgeben
-  Serial.println("Dynamische API-URL: ");
-  Serial.println(apiUrl);
+  //Serial.println("Dynamische API-URL: ");
+  //Serial.println(apiUrl);
+
+  MAWAQIT_URL = "https://mawaqit.net/de/ikv-kostheim"; // Deine Moschee-URL
 
   // Gebetszeiten abrufen
   showBootMessage("Zeiten abrufen...");
-  fetchPrayerTimes(fajrTime, shurukTime, dhuhrTime, asrTime, maghribTime, ishaTime, apiUrl);
+  fetchPrayerTimes(fajrTime, shurukTime, dhuhrTime, asrTime, maghribTime, ishaTime, MAWAQIT_URL);
   showBootMessage("Zeiten Abruf erfolgreich!");
   delay(1000);          // Fertig
 
@@ -321,7 +324,7 @@ void loop() {
 
   // Gebetszeiten um Mitternacht aktualisieren
   if (timeClient.getHours() == 0 && timeClient.getMinutes() == 0 && millis() - lastPrayerUpdate > 60 * 1000) {
-    fetchPrayerTimes(fajrTime, shurukTime, dhuhrTime, asrTime, maghribTime, ishaTime, apiUrl);
+    fetchPrayerTimes(fajrTime, shurukTime, dhuhrTime, asrTime, maghribTime, ishaTime, MAWAQIT_URL);
     lastPrayerUpdate = millis();
     Serial.println("Gebetszeiten um Mitternacht aktualisiert.");
   }

@@ -20,6 +20,6 @@ extern String athanTone;
 extern String reminderTone; 
 
 extern String fajrTime, shurukTime, dhuhrTime, asrTime, maghribTime, ishaTime;
-
+extern String MAWAQIT_URL;
 
 #endif

@@ -13,7 +13,7 @@ void handleRoot() {
 void handleSetCity() {
     if (server.hasArg("city")) {
         selectedCity = server.arg("city");
-        apiUrl = "http://api.aladhan.com/v1/timingsByCity/" + String(currentDay) + "-" + String(currentMonth) + "-" + String(currentYear) + "?city=" + String(selectedCity) + "&country=Germany&method=2";
+        //apiUrl = "http://api.aladhan.com/v1/timingsByCity/" + String(currentDay) + "-" + String(currentMonth) + "-" + String(currentYear) + "?city=" + String(selectedCity) + "&country=Germany&method=2";
         Serial.println("API URL erstellt in handlesetcity funktion: ");
         Serial.println(apiUrl);
         Serial.println("Zeiten abrufen...");
