@@ -20,5 +20,9 @@ void showBootMessage(const char* message);
 // NEU: Fehlende Funktionen
 bool isAudioPlaying();
 void stopAudio();
+void setVolume(int volume);
+void volumeUp();
+void volumeDown();
+int getCurrentVolume();
 
 #endif // AUDIO_H

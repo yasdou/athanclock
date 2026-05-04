@@ -435,6 +435,7 @@ void setup() {
 void loop() {
   server.handleClient();
   handleButtons();
+  updateVolumeOverlay(); 
 
   if (!timeValid && WiFi.status() == WL_CONNECTED) {
     timeValid = syncClock(2000);

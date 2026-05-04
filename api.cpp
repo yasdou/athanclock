@@ -51,13 +51,12 @@ void fetchPrayerTimes(String& fajr, String& shuruk, String& dhuhr, String& asr, 
                     isha = times[5].as<String>();
                     
                     formatTime(fajr);
+                    formatTime(shuruk);
                     formatTime(dhuhr);
                     formatTime(asr);
                     formatTime(maghrib);
                     formatTime(isha);
                     
-                    // 🔥 SHURUK/SUNRISE für Mainz holen
-                    getSunriseMainz(shuruk);
                     
                     Serial.println("\n✅ ALLE GEBETSZEITEN:");
                     Serial.print("Fajr:    "); Serial.println(fajr);
@@ -77,45 +76,6 @@ void fetchPrayerTimes(String& fajr, String& shuruk, String& dhuhr, String& asr, 
     }
 }
 
-// ===== SONNENAUFGANG MAINZ (50.0, 8.27) =====
-void getSunriseMainz(String& shuruk) {
-    HTTPClient http;
-    // Use WiFiClient class to create TCP connections
-    WiFiClientSecure client;
-    const int httpPort = 443; // 80 is for HTTP / 443 is for HTTPS!
-    client.setInsecure(); // this is the magical line that makes everything work
-    
-    // Sunrise-Sunset API (kostenlos)
-    String sunriseUrl = "https://api.sunrise-sunset.org/json?lat=50.0&lng=8.27&date=today&formatted=0";
-    
-    Serial.println("Hole Sonnenaufgang Mainz...");
-    http.begin(client, sunriseUrl);
-    http.addHeader("User-Agent", "Mozilla/5.0");
-    http.addHeader("Accept", "application/json");
-    
-    int httpCode = http.GET();
-    if (httpCode == 200) {
-        String payload = http.getString();
-        Serial.println("Sunrise Raw: " + payload);
-        
-        JsonDocument doc;
-        DeserializationError error = deserializeJson(doc, payload);
-        
-        if (!error && doc["status"] == "OK") {
-            shuruk = doc["results"]["sunrise"].as<String>();
-            formatTime(shuruk);
-            Serial.println("✅ Shuruk: " + shuruk);
-        } else {
-            shuruk = "--:--";
-            Serial.println("❌ Sunrise Fehler");
-        }
-    } else {
-        shuruk = "--:--";
-        Serial.println("❌ Sunrise HTTP: " + String(httpCode));
-    }
-    
-    http.end();
-}
 
 void formatTime(String& timeStr) {
     int colonPos = timeStr.indexOf(':');

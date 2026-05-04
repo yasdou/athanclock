@@ -34,23 +34,6 @@ void toggleMenu() {
     }
 }
 
-void onShortPressUp() {
-    if (currentMode == MODE_HOME) {
-        volumeUp();
-    } else if (currentMode == MODE_MENU) {
-        confirmSelection();
-    } else if (currentMode == MODE_EDIT) {
-        saveAndExit();
-    }
-}
-
-void onShortPressDown() {
-    if (currentMode == MODE_HOME) {
-        volumeDown();
-    } else {
-        scrollMenu();
-    }
-}
 
 void showMenu(Adafruit_ST7735& display) {
     display.fillScreen(ST77XX_WHITE);
@@ -76,52 +59,6 @@ void confirmSelection() {
     currentMode = MODE_EDIT;
     menuScroll = 0;
     // Edit-Ansicht anzeigen
-}
-
-void volumeUp() {
-    if (!isAudioInitialized) {
-        Serial.println("Audio nicht verfügbar");
-        return;
-    }
-    
-    int vol = myDFPlayer.readVolume();
-    if (vol < 30) {
-        vol += 2;
-        myDFPlayer.volume(vol);
-        Serial.print("Lautstärke: ");
-        Serial.println(vol);
-        
-        // Feedback auf Display (optional)
-        display.fillRect(0, 120, 128, 20, ST77XX_WHITE);
-        display.setCursor(10, 125);
-        display.setTextColor(ST77XX_BLACK);
-        display.setTextSize(1);
-        display.print("Vol: ");
-        display.print(vol);
-    }
-}
-
-void volumeDown() {
-    if (!isAudioInitialized) {
-        Serial.println("Audio nicht verfügbar");
-        return;
-    }
-    
-    int vol = myDFPlayer.readVolume();
-    if (vol > 0) {
-        vol -= 2;
-        myDFPlayer.volume(vol);
-        Serial.print("Lautstärke: ");
-        Serial.println(vol);
-        
-        // Feedback auf Display (optional)
-        display.fillRect(0, 120, 128, 20, ST77XX_WHITE);
-        display.setCursor(10, 125);
-        display.setTextColor(ST77XX_BLACK);
-        display.setTextSize(1);
-        display.print("Vol: ");
-        display.print(vol);
-    }
 }
 
 void saveAndExit() {
