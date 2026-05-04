@@ -28,41 +28,48 @@ void updateDisplay(Adafruit_ST7735& display, String fajr, String shuruk, String 
     int lineSpacing = 15; // Abstand zwischen den Zeilen
     int startY = 20; // Startpunkt für die erste Zeile
 
+    // Moschee
+    display.setTextSize(1);
+    String Moschee = "== IKV KOSTHEIM ==";
+    display.getTextBounds(Moschee, 0, 0, &x1, &y1, &width, &height);
+    display.setCursor((display.width() - width) / 2, startY);
+    display.print(Moschee);
+
     // Fajr
     display.setTextSize(1);
     String fajrText = "Fajr: ";
     display.getTextBounds(fajrText + fajr, 0, 0, &x1, &y1, &width, &height);
-    display.setCursor((display.width() - width) / 2, startY);
+    display.setCursor((display.width() - width) / 2, startY + lineSpacing);
     display.print(fajrText); display.println(fajr);
 
     // Shuruk
     String shurukText = "Shuruk: ";
     display.getTextBounds(shurukText + shuruk, 0, 0, &x1, &y1, &width, &height);
-    display.setCursor((display.width() - width) / 2, startY + lineSpacing);
+    display.setCursor((display.width() - width) / 2, startY + 2 * lineSpacing);
     display.print(shurukText); display.println(shuruk);
 
     // Dhuhr
     String dhuhrText = "Dhuhr: ";
     display.getTextBounds(dhuhrText + dhuhr, 0, 0, &x1, &y1, &width, &height);
-    display.setCursor((display.width() - width) / 2, startY + 2 * lineSpacing);
+    display.setCursor((display.width() - width) / 2, startY + 3 * lineSpacing);
     display.print(dhuhrText); display.println(dhuhr);
 
     // Asr
     String asrText = "Asr: ";
     display.getTextBounds(asrText + asr, 0, 0, &x1, &y1, &width, &height);
-    display.setCursor((display.width() - width) / 2, startY + 3 * lineSpacing);
+    display.setCursor((display.width() - width) / 2, startY + 4 * lineSpacing);
     display.print(asrText); display.println(asr);
 
     // Maghrib
     String maghribText = "Maghrib: ";
     display.getTextBounds(maghribText + maghrib, 0, 0, &x1, &y1, &width, &height);
-    display.setCursor((display.width() - width) / 2, startY + 4 * lineSpacing);
+    display.setCursor((display.width() - width) / 2, startY + 5 * lineSpacing);
     display.print(maghribText); display.println(maghrib);
 
     // Isha
     String ishaText = "Isha: ";
     display.getTextBounds(ishaText + isha, 0, 0, &x1, &y1, &width, &height);
-    display.setCursor((display.width() - width) / 2, startY + 5 * lineSpacing);
+    display.setCursor((display.width() - width) / 2, startY + 6 * lineSpacing);
     display.print(ishaText); display.println(isha);
 
     // Time (HH:MM format) - 35 Pixel unter der letzten Zeile

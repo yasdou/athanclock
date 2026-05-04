@@ -8,6 +8,7 @@
 // ===== FORWARD DECLARATION =====
 void formatTime(String& timeStr);
 void extractPrayerTimes(const String& payload, String& fajr, String& shuruk, String& dhuhr, String& asr, String& maghrib, String& isha);
+void getSunriseMainz(String& shuruk);
 
 void fetchPrayerTimes(String& fajr, String& shuruk, String& dhuhr, String& asr, String& maghrib, String& isha, const String& apiUrl) {
     if (WiFi.status() == WL_CONNECTED) {
@@ -15,10 +16,9 @@ void fetchPrayerTimes(String& fajr, String& shuruk, String& dhuhr, String& asr, 
         // Use WiFiClient class to create TCP connections
         WiFiClientSecure client;
         const int httpPort = 443; // 80 is for HTTP / 443 is for HTTPS!
+        client.setInsecure(); // this is the magical line that makes everything work
         
         String url = "https://mawaqit.thesimpleteam.net/times/ikv-kostheim";
-                
-        client.setInsecure(); // this is the magical line that makes everything work
 
         Serial.println("\n=== IKV KOSTHEIM ===");
         Serial.println("Start URL: " + url);
@@ -44,10 +44,11 @@ void fetchPrayerTimes(String& fajr, String& shuruk, String& dhuhr, String& asr, 
                 JsonArray times = doc.as<JsonArray>();
                 if (times.size() >= 5) {
                     fajr = times[0].as<String>();
-                    dhuhr = times[1].as<String>();
-                    asr = times[2].as<String>();
-                    maghrib = times[3].as<String>();
-                    isha = times[4].as<String>();
+                    shuruk = times[1].as<String>();
+                    dhuhr = times[2].as<String>();
+                    asr = times[3].as<String>();
+                    maghrib = times[4].as<String>();
+                    isha = times[5].as<String>();
                     
                     formatTime(fajr);
                     formatTime(dhuhr);
@@ -55,12 +56,16 @@ void fetchPrayerTimes(String& fajr, String& shuruk, String& dhuhr, String& asr, 
                     formatTime(maghrib);
                     formatTime(isha);
                     
-                    Serial.println("\n✅ GEBETSZEITEN:");
-                    Serial.print("Fajr:   "); Serial.println(fajr);
-                    Serial.print("Dhuhr:  "); Serial.println(dhuhr);
-                    Serial.print("Asr:    "); Serial.println(asr);
-                    Serial.print("Maghrib:"); Serial.println(maghrib);
-                    Serial.print("Isha:   "); Serial.println(isha);
+                    // 🔥 SHURUK/SUNRISE für Mainz holen
+                    getSunriseMainz(shuruk);
+                    
+                    Serial.println("\n✅ ALLE GEBETSZEITEN:");
+                    Serial.print("Fajr:    "); Serial.println(fajr);
+                    Serial.print("Shuruk:  "); Serial.println(shuruk);
+                    Serial.print("Dhuhr:   "); Serial.println(dhuhr);
+                    Serial.print("Asr:     "); Serial.println(asr);
+                    Serial.print("Maghrib: "); Serial.println(maghrib);
+                    Serial.print("Isha:    "); Serial.println(isha);
                 }
             }
         } else {
@@ -70,6 +75,46 @@ void fetchPrayerTimes(String& fajr, String& shuruk, String& dhuhr, String& asr, 
         
         http.end();
     }
+}
+
+// ===== SONNENAUFGANG MAINZ (50.0, 8.27) =====
+void getSunriseMainz(String& shuruk) {
+    HTTPClient http;
+    // Use WiFiClient class to create TCP connections
+    WiFiClientSecure client;
+    const int httpPort = 443; // 80 is for HTTP / 443 is for HTTPS!
+    client.setInsecure(); // this is the magical line that makes everything work
+    
+    // Sunrise-Sunset API (kostenlos)
+    String sunriseUrl = "https://api.sunrise-sunset.org/json?lat=50.0&lng=8.27&date=today&formatted=0";
+    
+    Serial.println("Hole Sonnenaufgang Mainz...");
+    http.begin(client, sunriseUrl);
+    http.addHeader("User-Agent", "Mozilla/5.0");
+    http.addHeader("Accept", "application/json");
+    
+    int httpCode = http.GET();
+    if (httpCode == 200) {
+        String payload = http.getString();
+        Serial.println("Sunrise Raw: " + payload);
+        
+        JsonDocument doc;
+        DeserializationError error = deserializeJson(doc, payload);
+        
+        if (!error && doc["status"] == "OK") {
+            shuruk = doc["results"]["sunrise"].as<String>();
+            formatTime(shuruk);
+            Serial.println("✅ Shuruk: " + shuruk);
+        } else {
+            shuruk = "--:--";
+            Serial.println("❌ Sunrise Fehler");
+        }
+    } else {
+        shuruk = "--:--";
+        Serial.println("❌ Sunrise HTTP: " + String(httpCode));
+    }
+    
+    http.end();
 }
 
 void formatTime(String& timeStr) {
