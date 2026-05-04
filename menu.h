@@ -12,11 +12,15 @@ extern int menuScroll;
 
 bool isMenuOpen();
 void toggleMenu();
+void closeMenuToHome();
+void menuRegisterActivity();
+void updateMenuTimeout();
 void showMenu(Adafruit_ST7735& display);
 void scrollMenuUp();
 void scrollMenuDown();
 void confirmSelection();
-void saveAndExit();
+void goBackOneLevel();
+void saveSelection();
 void showEditScreen(Adafruit_ST7735& display);
 void showVolumeOverlay(Adafruit_ST7735& display, int volume);
 void updateVolumeOverlay();
