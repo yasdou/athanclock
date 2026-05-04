@@ -10,14 +10,15 @@ extern AppMode currentMode;
 extern int menuItem;
 extern int menuScroll;
 
+bool isMenuOpen();
 void toggleMenu();
 void showMenu(Adafruit_ST7735& display);
-void scrollMenu();
+void scrollMenuUp();
+void scrollMenuDown();
 void confirmSelection();
-void onShortPressUp();
-void onShortPressDown();
-void volumeUp();
-void volumeDown();
 void saveAndExit();
+void showEditScreen(Adafruit_ST7735& display);
+void showVolumeOverlay(Adafruit_ST7735& display, int volume);
+void updateVolumeOverlay();
 
 #endif

@@ -2,8 +2,14 @@
 #include "menu.h"
 #include "audio.h"
 
-unsigned long btnPressTime[2] = {0, 0};  // Separate Timestamps für beide Buttons
-unsigned long lastBtnPress = 0;
+// Zugriff auf das globale Display-Objekt aus dem Hauptsketch
+extern Adafruit_ST7735 display;
+
+unsigned long btnPressTimeUp = 0;
+unsigned long btnPressTimeDn = 0;
+unsigned long lastBtnEvent = 0;
+const unsigned long DEBOUNCE_MS = 50;
+const unsigned long LONG_PRESS_MS = 2000;
 
 void setupButtons() {
     pinMode(BTN_VOL_UP, INPUT_PULLUP);
@@ -12,70 +18,79 @@ void setupButtons() {
 
 void handleButtons() {
     unsigned long now = millis();
-    if (now - lastBtnPress < 50) return;  // Debounce 50ms
+    if (now - lastBtnEvent < DEBOUNCE_MS) return;
 
-    bool btnUpPressed = !digitalRead(BTN_VOL_UP);
-    bool btnDnPressed = !digitalRead(BTN_VOL_DN);
-    
-    // Audio stoppen bei jedem Drücken
-    if ((btnUpPressed || btnDnPressed) && isAudioPlaying()) {
+    bool upPressed = !digitalRead(BTN_VOL_UP);
+    bool dnPressed = !digitalRead(BTN_VOL_DN);
+
+    // Audio stoppen bei beliebigem Drücken
+    if ((upPressed || dnPressed) && isAudioPlaying()) {
         stopAudio();
-        lastBtnPress = now;
+        lastBtnEvent = now;
+        btnPressTimeUp = 0;
+        btnPressTimeDn = 0;
         return;
     }
-    
-    // Button UP (langes Drücken = Menü)
-    if (btnUpPressed) {
-        if (btnPressTime[0] == 0) {  // Erstes Drücken
-            btnPressTime[0] = now;
-        } else if (now - btnPressTime[0] > 2000) {  // >2s = Lang
-            toggleMenu();
-            btnPressTime[0] = 0;
-            lastBtnPress = now;
-            return;
+
+    // ── BTN_VOL_UP ────────────────────────────────
+    if (upPressed) {
+        if (btnPressTimeUp == 0) {
+            btnPressTimeUp = now;
         }
-    } else if (btnPressTime[0] > 0) {  // Losgelassen
-        unsigned long duration = now - btnPressTime[0];
-        if (duration < 2000) {  // Kurzdruck
-            onShortPressUp();
+        // Langer Druck (noch gehalten) → sofort auslösen
+        if (now - btnPressTimeUp >= LONG_PRESS_MS) {
+            if (isMenuOpen()) {
+                confirmSelection();  // Untermenü öffnen oder speichern
+            } else {
+                toggleMenu();        // Menü öffnen
+            }
+            btnPressTimeUp = 0;
+            lastBtnEvent = now;
         }
-        btnPressTime[0] = 0;
-        lastBtnPress = now;
-        return;
+    } else if (btnPressTimeUp > 0) {
+        // Losgelassen → Kurzdruck
+        if (now - btnPressTimeUp < LONG_PRESS_MS) {
+            if (isMenuOpen()) {
+                scrollMenuUp();      // Menü nach oben navigieren
+            } else {
+                volumeUp();          // Lautstärke erhöhen
+                showVolumeOverlay(display, getCurrentVolume());
+            }
+        }
+        btnPressTimeUp = 0;
+        lastBtnEvent = now;
     }
-    
-    // Button DOWN (nur Kurzdruck)
-    if (btnDnPressed) {
-        if (btnPressTime[1] == 0) {
-            btnPressTime[1] = now;
+
+    // ── BTN_VOL_DN ────────────────────────────────
+    if (dnPressed) {
+        if (btnPressTimeDn == 0) {
+            btnPressTimeDn = now;
         }
-    } else if (btnPressTime[1] > 0) {
-        unsigned long duration = now - btnPressTime[1];
-        if (duration < 2000) {
-            onShortPressDown();
+        // Langer Druck → Bestätigen (im Menü) oder zurück (Home)
+        if (now - btnPressTimeDn >= LONG_PRESS_MS) {
+            if (isMenuOpen()) {
+                confirmSelection();  // Untermenü öffnen oder speichern
+            } else {
+                // Im Home kein langer DOWN definiert, kann erweitert werden
+            }
+            btnPressTimeDn = 0;
+            lastBtnEvent = now;
         }
-        btnPressTime[1] = 0;
-        lastBtnPress = now;
-        return;
+    } else if (btnPressTimeDn > 0) {
+        // Losgelassen → Kurzdruck
+        if (now - btnPressTimeDn < LONG_PRESS_MS) {
+            if (isMenuOpen()) {
+                scrollMenuDown();    // Menü nach unten navigieren
+            } else {
+                volumeDown();        // Lautstärke senken
+                showVolumeOverlay(display, getCurrentVolume());
+            }
+        }
+        btnPressTimeDn = 0;
+        lastBtnEvent = now;
     }
 }
 
 bool isAnyButtonPressed() {
     return !digitalRead(BTN_VOL_UP) || !digitalRead(BTN_VOL_DN);
-}
-
-void onShortPressUp() {
-    Serial.println("Volume UP");
-    int currentVol = getCurrentVolume();
-    if (currentVol < 30) {
-        setVolume(currentVol + 1);
-    }
-}
-
-void onShortPressDown() {
-    Serial.println("Volume DOWN");
-    int currentVol = getCurrentVolume();
-    if (currentVol > 0) {
-        setVolume(currentVol - 1);
-    }
 }
