@@ -1,3 +1,6 @@
+# 1 "C:\\Users\\yassin\\AppData\\Local\\Temp\\tmpil1i077e"
+#include <Arduino.h>
+# 1 "C:/Users/yassin/Documents/PlatformIO/Projects/260112-132505-nodemcu/src/AthanClock.ino"
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_ST7735.h>
@@ -19,7 +22,24 @@
 #define TFT_DC D3
 
 Adafruit_ST7735 display(TFT_CS, TFT_DC, TFT_RST);
-
+void showBootMessage(const char* message);
+void updateCurrentDateFromNTP();
+void printCurrentDateDebug();
+String buildMonthlyApiUrl(int year, int month);
+int timeToMinutes(const String& t);
+String getPrayerTimeByName(int dayIndex, const String& prayerName);
+void printTodayCacheDebug();
+String getNextPrayerTimeFor(const String& prayerName);
+void refreshDisplayedPrayerTimes();
+String getTodayPrayerTimeFor(const String& prayerName);
+bool isTimeForReminder(String prayerTime, bool& reminderPlayed, int reminderMode);
+bool shouldPlayAthan(String prayerTime, bool& athanPlayed, int athanMode);
+void startPrayerCountdown(String prayerName, String prayerTime);
+void updatePrayerCountdown();
+void printDisplayTimesDebug();
+void setup();
+void loop();
+#line 23 "C:/Users/yassin/Documents/PlatformIO/Projects/260112-132505-nodemcu/src/AthanClock.ino"
 void showBootMessage(const char* message) {
   display.fillRect(0, 70, 128, 50, ST77XX_WHITE);
   display.setCursor(10, 80);
@@ -89,9 +109,9 @@ void updateCurrentDateFromNTP() {
   time_t rawTime = (time_t)epochTime;
   struct tm *ptm = gmtime(&rawTime);
 
-  currentDay   = ptm->tm_mday;
+  currentDay = ptm->tm_mday;
   currentMonth = ptm->tm_mon + 1;
-  currentYear  = ptm->tm_year + 1900;
+  currentYear = ptm->tm_year + 1900;
 }
 
 void printCurrentDateDebug() {
@@ -232,12 +252,12 @@ void refreshDisplayedPrayerTimes() {
         return;
     }
 
-    fajrTime    = getNextPrayerTimeFor("Fajr");
-    shurukTime  = getNextPrayerTimeFor("Shuruk");
-    dhuhrTime   = getNextPrayerTimeFor("Dhuhr");
-    asrTime     = getNextPrayerTimeFor("Asr");
+    fajrTime = getNextPrayerTimeFor("Fajr");
+    shurukTime = getNextPrayerTimeFor("Shuruk");
+    dhuhrTime = getNextPrayerTimeFor("Dhuhr");
+    asrTime = getNextPrayerTimeFor("Asr");
     maghribTime = getNextPrayerTimeFor("Maghrib");
-    ishaTime    = getNextPrayerTimeFor("Isha");
+    ishaTime = getNextPrayerTimeFor("Isha");
 }
 
 String getTodayPrayerTimeFor(const String& prayerName) {
@@ -500,12 +520,12 @@ void loop() {
     lastPrayerUpdate = millis();
   }
 
-  String todayFajr    = getTodayPrayerTimeFor("Fajr");
-  String todayShuruk  = getTodayPrayerTimeFor("Shuruk");
-  String todayDhuhr   = getTodayPrayerTimeFor("Dhuhr");
-  String todayAsr     = getTodayPrayerTimeFor("Asr");
+  String todayFajr = getTodayPrayerTimeFor("Fajr");
+  String todayShuruk = getTodayPrayerTimeFor("Shuruk");
+  String todayDhuhr = getTodayPrayerTimeFor("Dhuhr");
+  String todayAsr = getTodayPrayerTimeFor("Asr");
   String todayMaghrib = getTodayPrayerTimeFor("Maghrib");
-  String todayIsha    = getTodayPrayerTimeFor("Isha");
+  String todayIsha = getTodayPrayerTimeFor("Isha");
 
   if (isTimeForReminder(todayFajr, fajrReminderPlayed, prayerReminderModes[0])) {
     if (!countdownActive || countdownPrayerName != "Fajr") {

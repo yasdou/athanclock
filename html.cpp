@@ -1,92 +1,103 @@
 #include "html.h"
 #include "config.h"
 #include "api.h"
+#include <time.h>
 
-// Webserver-Instanz erstellen
 ESP8266WebServer server(80);
 
+extern String selectedCity;
+extern String apiUrl;
+
+extern int currentDay;
+extern int currentMonth;
+extern int currentYear;
+extern int loadedMonth;
+extern int loadedYear;
+extern int daysInLoadedMonth;
+
+extern PrayerDay monthlyPrayerTimes[31];
+
+extern String fajrTime;
+extern String shurukTime;
+extern String dhuhrTime;
+extern String asrTime;
+extern String maghribTime;
+extern String ishaTime;
+
+String buildMonthlyApiUrlHtml(int year, int month) {
+    return "https://api.aladhan.com/v1/calendarByCity/" + String(year) + "/" + String(month) +
+           "?city=" + String(selectedCity) + "&country=Germany&method=2";
+}
+
+void refreshTodayPrayerTimesFromCache() {
+    int todayIndex = currentDay - 1;
+
+    if (todayIndex >= 0 && todayIndex < daysInLoadedMonth) {
+        fajrTime    = monthlyPrayerTimes[todayIndex].fajr;
+        shurukTime  = monthlyPrayerTimes[todayIndex].shuruk;
+        dhuhrTime   = monthlyPrayerTimes[todayIndex].dhuhr;
+        asrTime     = monthlyPrayerTimes[todayIndex].asr;
+        maghribTime = monthlyPrayerTimes[todayIndex].maghrib;
+        ishaTime    = monthlyPrayerTimes[todayIndex].isha;
+    }
+}
+
 void handleRoot() {
-    String html = getHtmlPage(selectedCity, prayerAthanModes[0]); // Parameter übergeben
+    String html = R"rawliteral(
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Athan Clock</title>
+</head>
+<body>
+  <h1>Athan Clock</h1>
+
+  <form action="/setCity" method="POST">
+    <label for="city">Stadt:</label>
+    <input type="text" id="city" name="city">
+    <button type="submit">Speichern</button>
+  </form>
+
+  <form action="/setAthan" method="POST">
+    <label for="athan">Athan:</label>
+    <input type="text" id="athan" name="athan">
+    <button type="submit">Speichern</button>
+  </form>
+</body>
+</html>
+)rawliteral";
+
     server.send(200, "text/html", html);
 }
 
 void handleSetCity() {
     if (server.hasArg("city")) {
         selectedCity = server.arg("city");
-        apiUrl = "http://api.aladhan.com/v1/timingsByCity/" + String(currentDay) + "-" + String(currentMonth) + "-" + String(currentYear) + "?city=" + String(selectedCity) + "&country=Germany&method=2";
-        Serial.println("API URL erstellt in handlesetcity funktion: ");
-        Serial.println(apiUrl);
-        Serial.println("Zeiten abrufen...");
-        fetchPrayerTimes(fajrTime, shurukTime, dhuhrTime, asrTime, maghribTime, ishaTime, apiUrl);
-        server.send(200, "text/plain", "City updated to " + selectedCity);
-    } else {
-        server.send(400, "text/plain", "Missing 'city' parameter");
+        apiUrl = buildMonthlyApiUrlHtml(currentYear, currentMonth);
+
+        if (fetchMonthlyPrayerTimes(monthlyPrayerTimes, daysInLoadedMonth, apiUrl)) {
+            loadedMonth = currentMonth;
+            loadedYear = currentYear;
+            refreshTodayPrayerTimesFromCache();
+            server.send(200, "text/plain", "Stadt gespeichert und Gebetszeiten aktualisiert: " + selectedCity);
+            return;
+        }
+
+        server.send(500, "text/plain", "Stadt gespeichert, aber Gebetszeiten konnten nicht geladen werden.");
+        return;
     }
+
+    server.send(400, "text/plain", "Keine Stadt empfangen.");
 }
 
 void handleSetAthan() {
     if (server.hasArg("athan")) {
-        int athanMode = server.arg("athan").toInt();
-        for (int i = 0; i < 6; i++) {
-            prayerAthanModes[i] = athanMode;
-        }
-        server.send(200, "text/plain", "Athan mode updated to " + String(athanMode));
-    } else {
-        server.send(400, "text/plain", "Missing 'athan' parameter");
+        String athan = server.arg("athan");
+        server.send(200, "text/plain", "Athan gespeichert: " + athan);
+        return;
     }
-}
 
-String getHtmlPage(String city, int athanMode) {
-    return R"rawliteral(
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Athan Clock Einstellungen</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <style>
-        body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
-        input, button { margin: 10px; padding: 10px; font-size: 16px; }
-        label { font-size: 18px; }
-    </style>
-</head>
-<body>
-    <h2>Athan Clock Einstellungen</h2>
-    
-    <label>Stadt:</label>
-    <input type="text" id="city" value=")rawliteral" + city + R"rawliteral(">
-    <button onclick="setCity()">Speichern</button>
-    <br>
-    
-    <label>Athan-Modus:</label>
-    <select id="athan">
-        <option value="0")rawliteral" + (athanMode == 0 ? " selected" : "") + R"rawliteral(>Kein Athan</option>
-        <option value="1")rawliteral" + (athanMode == 1 ? " selected" : "") + R"rawliteral(>Athan aktiv</option>
-    </select>
-    <button onclick="setAthan()">Speichern</button>
-    
-    <script>
-        function setCity() {
-            let city = document.getElementById("city").value;
-            fetch("/setCity", { 
-                method: "POST", 
-                headers: { "Content-Type": "application/x-www-form-urlencoded" }, 
-                body: "city=" + encodeURIComponent(city) 
-            })
-            .then(response => response.text())
-            .then(data => alert(data));
-        }
-        function setAthan() {
-            let athan = document.getElementById("athan").value;
-            fetch("/setAthan", { 
-                method: "POST", 
-                headers: { "Content-Type": "application/x-www-form-urlencoded" }, 
-                body: "athan=" + athan 
-            })
-            .then(response => response.text())
-            .then(data => alert(data));
-        }
-    </script>
-</body>
-</html>
-)rawliteral";
+    server.send(400, "text/plain", "Kein Athan empfangen.");
 }

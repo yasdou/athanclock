@@ -1,88 +1,120 @@
 #include "api.h"
-#include "config.h"
 #include <ESP8266WiFi.h>
+#include <ESP8266HTTPClient.h>
+#include <WiFiClientSecureBearSSL.h>
+#include <ArduinoJson.h>
 
-#include <ArduinoJson.h> // Wenn noch nicht inkludiert, für JSON-Dokumente
-// #include <WiFi.h>  // Stelle sicher, dass du WiFi.h inkludiert hast
+static String cleanTimeString(const String& raw) {
+    if (raw.length() >= 5) return raw.substring(0, 5);
+    return raw;
+}
 
-void fetchPrayerTimes(String& fajr, String& shuruk, String& dhuhr, String& asr, String& maghrib, String& isha, const String& apiUrl) {
-    if (WiFi.status() == WL_CONNECTED) {
-        HTTPClient http;  // HTTPClient-Objekt deklarieren
-        WiFiClient client;
-        http.begin(client, apiUrl); // Benutze WiFiClient-Objekt
-        Serial.println("Starte API-Abfrage...");
-        Serial.println("API-URL:");
-        Serial.println(apiUrl);
-
-        int httpCode = http.GET(); // Sende GET-Anfrage        
-        Serial.print("HTTP Status Code: ");
-        Serial.println(httpCode);  // Zeigt den Statuscode an
-
-        if (httpCode == 200) {
-            // Wenn die Anfrage erfolgreich war
-            String payload = http.getString();
-            Serial.println("API-Abfrage erfolgreich!");
-            Serial.println("Raw API response:");
-            Serial.println(payload);  // Zeigt die rohe Antwort an
-
-            // JSON-Daten deserialisieren
-            DynamicJsonDocument doc(512);
-            DeserializationError error = deserializeJson(doc, payload);
-
-            if (error) {
-                Serial.print("Fehler beim Parsen des JSON: ");
-                Serial.println(error.f_str());
-                return;
-            }
-
-            // Gebetszeiten extrahieren
-            fajr = doc["data"]["timings"]["Fajr"].as<String>();
-            shuruk = doc["data"]["timings"]["Sunrise"].as<String>();
-            dhuhr = doc["data"]["timings"]["Dhuhr"].as<String>();
-            asr = doc["data"]["timings"]["Asr"].as<String>();
-            maghrib = doc["data"]["timings"]["Maghrib"].as<String>();
-            isha = doc["data"]["timings"]["Isha"].as<String>();
-
-            // Ausgeben der abgerufenen Gebetszeiten im Serial Monitor
-            Serial.println("Abgerufene Gebetszeiten:");
-            Serial.print("Fajr: "); Serial.println(fajr);
-            Serial.print("Shuruk: "); Serial.println(shuruk);
-            Serial.print("Dhuhr: "); Serial.println(dhuhr);
-            Serial.print("Asr: "); Serial.println(asr);
-            Serial.print("Maghrib: "); Serial.println(maghrib);
-            Serial.print("Isha: "); Serial.println(isha);
-        // } else if (httpCode == 302) {
-        //     // Umleitung (Redirect)
-        //     Serial.println("Fehler 302: Umleitung");
-        //     String redirectUrl = http.header("Location");
-        //     if (redirectUrl != "") {
-        //         Serial.print("Weiterleitungs-URL: ");
-        //         Serial.println(redirectUrl);
-        //         httpCode = http.GET();  // Sende die GET-Anfrage erneut an die neue URL
-        //         if (httpCode == 200) {
-        //             String payload = http.getString();
-        //             Serial.println("API-Abfrage erfolgreich nach Umleitung!");
-        //             Serial.println(payload);  // Zeigt die Antwort nach Umleitung an
-        //         } else {
-        //             Serial.print("Fehler bei der API-Abfrage nach Umleitung. HTTP Code: ");
-        //             Serial.println(httpCode);
-        //         }
-            // } else {
-            //     Serial.println("Keine Weiterleitungs-URL gefunden.");
-            //     // Zeige alle Header, um mehr Informationen zu erhalten
-            //     Serial.println("Antwort-Header:");
-            //     String headers = http.getString();
-            //     Serial.println(headers);
-            // }
-        } else {
-            // Fehler bei der HTTP-Anfrage
-            Serial.print("Fehler bei der API-Abfrage. HTTP Code: ");
-            Serial.println(httpCode);
-        }
-
-        http.end(); // HTTP-Verbindung beenden
-    } else {
-        // Kein Wi-Fi verbunden
+bool fetchMonthlyPrayerTimes(PrayerDay monthlyPrayerTimes[], int& daysInMonth, const String& apiUrl) {
+    if (WiFi.status() != WL_CONNECTED) {
         Serial.println("WiFi ist nicht verbunden!");
+        return false;
     }
+
+    std::unique_ptr<BearSSL::WiFiClientSecure> client(new BearSSL::WiFiClientSecure);
+    client->setInsecure();
+
+    HTTPClient http;
+    http.useHTTP10(true);  // wichtig gegen chunked transfer beim Stream-Parsing
+
+    Serial.println("======================================");
+    Serial.println("Starte Monats-API-Abfrage...");
+    Serial.print("API-URL: ");
+    Serial.println(apiUrl);
+
+    if (!http.begin(*client, apiUrl)) {
+        Serial.println("http.begin() fehlgeschlagen");
+        return false;
+    }
+
+    int httpCode = http.GET();
+    Serial.print("HTTP Status Code: ");
+    Serial.println(httpCode);
+
+    if (httpCode <= 0) {
+        Serial.print("HTTP Fehlertext: ");
+        Serial.println(http.errorToString(httpCode));
+        http.end();
+        return false;
+    }
+
+    if (httpCode != HTTP_CODE_OK) {
+        Serial.println("API lieferte keinen 200-Status.");
+        http.end();
+        return false;
+    }
+
+    int len = http.getSize();
+    Serial.print("Content-Length: ");
+    Serial.println(len);
+
+    DynamicJsonDocument filter(1024);
+    filter["data"][0]["timings"]["Fajr"] = true;
+    filter["data"][0]["timings"]["Sunrise"] = true;
+    filter["data"][0]["timings"]["Dhuhr"] = true;
+    filter["data"][0]["timings"]["Asr"] = true;
+    filter["data"][0]["timings"]["Maghrib"] = true;
+    filter["data"][0]["timings"]["Isha"] = true;
+
+    DynamicJsonDocument doc(24576);
+
+    DeserializationError error = deserializeJson(
+        doc,
+        http.getStream(),
+        DeserializationOption::Filter(filter)
+    );
+
+    if (error) {
+        Serial.print("JSON Parse Fehler: ");
+        Serial.println(error.f_str());
+        http.end();
+        return false;
+    }
+
+    JsonArray data = doc["data"].as<JsonArray>();
+    daysInMonth = data.size();
+
+    Serial.print("Anzahl Tage im Monatsarray: ");
+    Serial.println(daysInMonth);
+
+    if (daysInMonth <= 0) {
+        Serial.println("Keine Tage gefunden.");
+        http.end();
+        return false;
+    }
+
+    if (daysInMonth > 31) {
+        daysInMonth = 31;
+    }
+
+    for (int i = 0; i < daysInMonth; i++) {
+        JsonObject timings = data[i]["timings"];
+
+        monthlyPrayerTimes[i].fajr    = cleanTimeString(timings["Fajr"]    | "");
+        monthlyPrayerTimes[i].shuruk  = cleanTimeString(timings["Sunrise"] | "");
+        monthlyPrayerTimes[i].dhuhr   = cleanTimeString(timings["Dhuhr"]   | "");
+        monthlyPrayerTimes[i].asr     = cleanTimeString(timings["Asr"]     | "");
+        monthlyPrayerTimes[i].maghrib = cleanTimeString(timings["Maghrib"] | "");
+        monthlyPrayerTimes[i].isha    = cleanTimeString(timings["Isha"]    | "");
+
+        Serial.print("Tag ");
+        Serial.print(i + 1);
+        Serial.print(" | Fajr=");
+        Serial.print(monthlyPrayerTimes[i].fajr);
+        Serial.print(" | Dhuhr=");
+        Serial.print(monthlyPrayerTimes[i].dhuhr);
+        Serial.print(" | Maghrib=");
+        Serial.print(monthlyPrayerTimes[i].maghrib);
+        Serial.print(" | Isha=");
+        Serial.println(monthlyPrayerTimes[i].isha);
+    }
+
+    http.end();
+    Serial.println("Monatsdaten erfolgreich eingelesen.");
+    Serial.println("======================================");
+    return true;
 }
