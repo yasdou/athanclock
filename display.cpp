@@ -1,112 +1,139 @@
-#include <Adafruit_GFX.h>
-#include <Adafruit_ST7735.h>
-#include <NTPClient.h>
-#include <WiFiUdp.h> 
-#include <SD.h>
 #include "display.h"
 
-// Deklaration der Variablen (extern)
-extern WiFiUDP ntpUDP;
-extern NTPClient timeClient;
+#include <Adafruit_GFX.h>
+
+static const int kCountdownY = 76;
+static const int kCountdownTextSize = 3;
+
+static String buildCityHeader(Adafruit_ST7735& display, const String& city) {
+  int16_t x1, y1;
+  uint16_t wCity, hCity, wEq, hEq;
+
+  String cityText = " " + city + " ";
+  display.setTextSize(1);
+  display.setFont(NULL);
+  display.getTextBounds(cityText, 0, 0, &x1, &y1, &wCity, &hCity);
+  display.getTextBounds("=", 0, 0, &x1, &y1, &wEq, &hEq);
+
+  int availableWidth = display.width() - wCity;
+  int eqPerSide = (wEq > 0 && availableWidth > 0) ? (availableWidth / 2) / wEq : 0;
+
+  String equals = "";
+  for (int i = 0; i < eqPerSide; i++) equals += "=";
+  return equals + cityText + equals;
+}
+
+static void printCentered(Adafruit_ST7735& display, const String& text, int y) {
+  int16_t x1, y1;
+  uint16_t w, h;
+  display.getTextBounds(text, 0, 0, &x1, &y1, &w, &h);
+  int x = (display.width() - (int)w) / 2;
+  display.setCursor(x < 0 ? 0 : x, y);
+  display.print(text);
+}
 
 void setupDisplay(Adafruit_ST7735& display) {
-    display.initR(INITR_BLACKTAB); // Display initialisieren
-    display.fillScreen(ST77XX_WHITE); // Hintergrund weiß
-    display.setTextColor(ST77XX_BLACK); // Schrift schwarz
-    display.setTextWrap(false);
-    display.setRotation(0); // Hochformat
+  display.initR(INITR_BLACKTAB);
+  display.fillScreen(ST77XX_WHITE);
+  display.setTextColor(ST77XX_BLACK);
+  display.setTextWrap(false);
+  display.setRotation(0);  // Hochformat
 }
 
-void updateDisplay(Adafruit_ST7735& display, String fajr, String shuruk, String dhuhr, String asr, String maghrib, String isha, String time) {
-    // Nur die ersten fünf Zeichen der Zeit (HH:MM) extrahieren
-    String formattedTime = time.substring(0, 5);  
-    display.fillScreen(ST77XX_WHITE); // Hintergrund weiß
+void updateDisplay(Adafruit_ST7735& display, const String& city, const int minutes[prayer::kPrayerCount], int hour,
+                   int minute) {
+  display.fillScreen(ST77XX_WHITE);
+  display.setTextColor(ST77XX_BLACK);
+  display.setTextSize(1);
+  display.setFont(NULL);
+  display.setTextWrap(false);
 
-    int16_t x1, y1;
-    uint16_t width, height;
+  printCentered(display, buildCityHeader(display, city), 5);
 
-    int lineSpacing = 15; // Abstand zwischen den Zeilen
-    int startY = 20; // Startpunkt für die erste Zeile
+  const int lineSpacing = 15;
+  const int startY = 30;
+  for (int i = 0; i < prayer::kPrayerCount; i++) {
+    char timeText[6];
+    prayer::formatHHMM(minutes[i], timeText, sizeof(timeText));
+    printCentered(display, String(prayer::kNames[i]) + ": " + timeText, startY + i * lineSpacing);
+  }
 
-    // Fajr
-    display.setTextSize(1);
-    String fajrText = "Fajr: ";
-    display.getTextBounds(fajrText + fajr, 0, 0, &x1, &y1, &width, &height);
-    display.setCursor((display.width() - width) / 2, startY);
-    display.print(fajrText); display.println(fajr);
-
-    // Shuruk
-    String shurukText = "Shuruk: ";
-    display.getTextBounds(shurukText + shuruk, 0, 0, &x1, &y1, &width, &height);
-    display.setCursor((display.width() - width) / 2, startY + lineSpacing);
-    display.print(shurukText); display.println(shuruk);
-
-    // Dhuhr
-    String dhuhrText = "Dhuhr: ";
-    display.getTextBounds(dhuhrText + dhuhr, 0, 0, &x1, &y1, &width, &height);
-    display.setCursor((display.width() - width) / 2, startY + 2 * lineSpacing);
-    display.print(dhuhrText); display.println(dhuhr);
-
-    // Asr
-    String asrText = "Asr: ";
-    display.getTextBounds(asrText + asr, 0, 0, &x1, &y1, &width, &height);
-    display.setCursor((display.width() - width) / 2, startY + 3 * lineSpacing);
-    display.print(asrText); display.println(asr);
-
-    // Maghrib
-    String maghribText = "Maghrib: ";
-    display.getTextBounds(maghribText + maghrib, 0, 0, &x1, &y1, &width, &height);
-    display.setCursor((display.width() - width) / 2, startY + 4 * lineSpacing);
-    display.print(maghribText); display.println(maghrib);
-
-    // Isha
-    String ishaText = "Isha: ";
-    display.getTextBounds(ishaText + isha, 0, 0, &x1, &y1, &width, &height);
-    display.setCursor((display.width() - width) / 2, startY + 5 * lineSpacing);
-    display.print(ishaText); display.println(isha);
-
-    // Time (HH:MM format) - 35 Pixel unter der letzten Zeile
-    display.setTextSize(2);
-    int timeY = startY + 5 * lineSpacing + 35; // Y-Position der Uhrzeit
-    display.getTextBounds(formattedTime, 0, 0, &x1, &y1, &width, &height);
-    display.setCursor((display.width() - width) / 2, timeY);
-    display.print(formattedTime);
+  char clock[6];
+  prayer::formatHHMM(hour * 60 + minute, clock, sizeof(clock));
+  display.setTextSize(2);
+  printCentered(display, clock, startY + 5 * lineSpacing + 35);
 }
 
-// Neuer, sauberer Reminder mit eigenem Countdown-Status
-void showPrayerReminder(Adafruit_ST7735& display, String prayerName, unsigned long remainingSeconds) {
-    // remainingSeconds kommt fertig berechnet aus athanclock.ino
+void showReminderScreen(Adafruit_ST7735& display, const char* prayerName) {
+  display.fillScreen(ST77XX_WHITE);
+  display.setTextColor(ST77XX_BLACK);
+  display.setTextWrap(false);
+  display.setTextSize(2);
+  printCentered(display, prayerName, 22);
+  display.setTextSize(1);
+  printCentered(display, "in", 52);
+}
 
-    int countdownMinutes = remainingSeconds / 60;
-    int countdownSeconds = remainingSeconds % 60;
+void showWifiSetupScreen(Adafruit_ST7735& display, const char* apName, const char* password, bool hasSavedWifi) {
+  display.fillScreen(ST77XX_WHITE);
+  display.setTextColor(ST77XX_BLACK);
+  display.setTextWrap(false);
+  display.setTextSize(1);
 
-    char countdownText[9];
-    sprintf(countdownText, "%02d:%02d", countdownMinutes, countdownSeconds);
+  printCentered(display, hasSavedWifi ? "WLAN nicht erreichbar" : "WLAN einrichten", 6);
+  display.drawFastHLine(8, 18, display.width() - 16, ST77XX_BLACK);
 
-    // Nur den unteren Bereich für den Countdown löschen, nicht den ganzen Screen
-    // Oben könntest du z.B. den Gebetsnamen einmalig zeichnen
-    display.fillRect(0, 60, display.width(), 40, ST77XX_WHITE);
+  display.setCursor(4, 26);
+  display.print("1. Verbinden mit:");
+  printCentered(display, apName, 40);
+  display.setCursor(4, 56);
+  display.print("Passwort:");
+  display.setTextSize(2);
+  printCentered(display, password, 68);
+  display.setTextSize(1);
 
-    // Gebetsname (oben, nur Textbereich – wird bei jedem Aufruf neu geschrieben,
-    // flackert aber wenig, weil nur kleiner Bereich)
-    display.setTextSize(2);
+  display.setCursor(4, 92);
+  display.print("2. Seite oeffnet von");
+  display.setCursor(4, 104);
+  display.print("   selbst, sonst:");
+  printCentered(display, "192.168.4.1", 116);
+  if (hasSavedWifi) {
+    printCentered(display, "(versuche es weiter)", 140);
+  }
+}
+
+void showUpdateProgress(Adafruit_ST7735& display, int percent) {
+  static int lastPercent = -2;
+  if (percent == lastPercent) return;
+  if (lastPercent == -2 || percent == 0) {
+    display.fillScreen(ST77XX_WHITE);
     display.setTextColor(ST77XX_BLACK);
-    int16_t x1, y1;
-    uint16_t w, h;
-    display.getTextBounds(prayerName, 0, 0, &x1, &y1, &w, &h);
-    display.setCursor((display.width() - w) / 2, 20);
-    display.print(prayerName);
-
-    // „in“ Text
     display.setTextSize(1);
-    display.getTextBounds("in", 0, 0, &x1, &y1, &w, &h);
-    display.setCursor((display.width() - w) / 2, 45);
-    display.print("in");
-
-    // Countdown in groß unten
-    display.setTextSize(2);
-    display.getTextBounds(countdownText, 0, 0, &x1, &y1, &w, &h);
-    display.setCursor((display.width() - w) / 2, 70);
-    display.print(countdownText);
+    printCentered(display, "Firmware-Update", 30);
+    printCentered(display, "Nicht ausschalten!", 45);
+    display.drawRect(10, 70, display.width() - 20, 14, ST77XX_BLACK);
+  }
+  lastPercent = percent;
+  if (percent < 0) {
+    display.fillRect(0, 95, display.width(), 10, ST77XX_WHITE);
+    printCentered(display, "Fehler beim Update", 95);
+    lastPercent = -2;
+    return;
+  }
+  int w = (display.width() - 24) * percent / 100;
+  display.fillRect(12, 72, w, 10, ST77XX_BLACK);
+  char text[8];
+  snprintf(text, sizeof(text), "%d %%", percent);
+  display.fillRect(0, 95, display.width(), 10, ST77XX_WHITE);
+  printCentered(display, text, 95);
 }
 
+void updateReminderCountdown(Adafruit_ST7735& display, long secondsLeft) {
+  char text[6];
+  prayer::formatCountdown(secondsLeft, text, sizeof(text));
+  // Nur den Bereich der Zahl übermalen
+  display.fillRect(0, kCountdownY, display.width(), 8 * kCountdownTextSize, ST77XX_WHITE);
+  display.setTextColor(ST77XX_BLACK);
+  display.setTextSize(kCountdownTextSize);
+  printCentered(display, text, kCountdownY);
+}

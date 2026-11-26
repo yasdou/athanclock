@@ -1,120 +1,76 @@
 #include "api.h"
-#include <ESP8266WiFi.h>
-#include <ESP8266HTTPClient.h>
-#include <WiFiClientSecureBearSSL.h>
-#include <ArduinoJson.h>
 
-static String cleanTimeString(const String& raw) {
-    if (raw.length() >= 5) return raw.substring(0, 5);
-    return raw;
+#include <ESP8266HTTPClient.h>
+#include <ESP8266WiFi.h>
+#include <WiFiClientSecureBearSSL.h>
+
+#include "month_parser.h"
+
+static uint32_t minFreeHeap = 0;
+
+static void recordMinHeap() {
+  uint32_t heap = ESP.getFreeHeap();
+  if (heap < minFreeHeap) minFreeHeap = heap;
 }
 
-bool fetchMonthlyPrayerTimes(PrayerDay monthlyPrayerTimes[], int& daysInMonth, const String& apiUrl) {
-    if (WiFi.status() != WL_CONNECTED) {
-        Serial.println("WiFi ist nicht verbunden!");
-        return false;
-    }
+// Eigentlicher Abruf. Eigene Funktion, damit TLS-Client und HTTPClient beim
+// Verlassen freigegeben sind, bevor der Speicher danach gemessen wird.
+static bool fetchWithClient(const char* apiUrl, int year, int month, prayer::MonthTimes& out) {
+  std::unique_ptr<BearSSL::WiFiClientSecure> client(new BearSSL::WiFiClientSecure);
+  client->setInsecure();  // kein Zertifikats-Check (spart RAM, Daten sind nicht geheim)
+  // aladhan unterstützt kein MFLN -> der 16-KB-Empfangspuffer ist nötig.
 
-    std::unique_ptr<BearSSL::WiFiClientSecure> client(new BearSSL::WiFiClientSecure);
-    client->setInsecure();
+  HTTPClient http;
+  http.useHTTP10(true);  // kein Chunked-Encoding -> Stream direkt parsbar
+  http.setTimeout(15000);
 
-    HTTPClient http;
-    http.useHTTP10(true);  // wichtig gegen chunked transfer beim Stream-Parsing
+  if (!http.begin(*client, apiUrl)) {
+    Serial.println("http.begin() fehlgeschlagen");
+    return false;
+  }
 
-    Serial.println("======================================");
-    Serial.println("Starte Monats-API-Abfrage...");
-    Serial.print("API-URL: ");
-    Serial.println(apiUrl);
-
-    if (!http.begin(*client, apiUrl)) {
-        Serial.println("http.begin() fehlgeschlagen");
-        return false;
-    }
-
-    int httpCode = http.GET();
-    Serial.print("HTTP Status Code: ");
-    Serial.println(httpCode);
-
+  int httpCode = http.GET();
+  recordMinHeap();
+  Serial.printf("HTTP Status Code: %d\n", httpCode);
+  if (httpCode != HTTP_CODE_OK) {
     if (httpCode <= 0) {
-        Serial.print("HTTP Fehlertext: ");
-        Serial.println(http.errorToString(httpCode));
-        http.end();
-        return false;
+      Serial.print("HTTP Fehlertext: ");
+      Serial.println(http.errorToString(httpCode));
     }
-
-    if (httpCode != HTTP_CODE_OK) {
-        Serial.println("API lieferte keinen 200-Status.");
-        http.end();
-        return false;
-    }
-
-    int len = http.getSize();
-    Serial.print("Content-Length: ");
-    Serial.println(len);
-
-    DynamicJsonDocument filter(1024);
-    filter["data"][0]["timings"]["Fajr"] = true;
-    filter["data"][0]["timings"]["Sunrise"] = true;
-    filter["data"][0]["timings"]["Dhuhr"] = true;
-    filter["data"][0]["timings"]["Asr"] = true;
-    filter["data"][0]["timings"]["Maghrib"] = true;
-    filter["data"][0]["timings"]["Isha"] = true;
-
-    DynamicJsonDocument doc(24576);
-
-    DeserializationError error = deserializeJson(
-        doc,
-        http.getStream(),
-        DeserializationOption::Filter(filter)
-    );
-
-    if (error) {
-        Serial.print("JSON Parse Fehler: ");
-        Serial.println(error.f_str());
-        http.end();
-        return false;
-    }
-
-    JsonArray data = doc["data"].as<JsonArray>();
-    daysInMonth = data.size();
-
-    Serial.print("Anzahl Tage im Monatsarray: ");
-    Serial.println(daysInMonth);
-
-    if (daysInMonth <= 0) {
-        Serial.println("Keine Tage gefunden.");
-        http.end();
-        return false;
-    }
-
-    if (daysInMonth > 31) {
-        daysInMonth = 31;
-    }
-
-    for (int i = 0; i < daysInMonth; i++) {
-        JsonObject timings = data[i]["timings"];
-
-        monthlyPrayerTimes[i].fajr    = cleanTimeString(timings["Fajr"]    | "");
-        monthlyPrayerTimes[i].shuruk  = cleanTimeString(timings["Sunrise"] | "");
-        monthlyPrayerTimes[i].dhuhr   = cleanTimeString(timings["Dhuhr"]   | "");
-        monthlyPrayerTimes[i].asr     = cleanTimeString(timings["Asr"]     | "");
-        monthlyPrayerTimes[i].maghrib = cleanTimeString(timings["Maghrib"] | "");
-        monthlyPrayerTimes[i].isha    = cleanTimeString(timings["Isha"]    | "");
-
-        Serial.print("Tag ");
-        Serial.print(i + 1);
-        Serial.print(" | Fajr=");
-        Serial.print(monthlyPrayerTimes[i].fajr);
-        Serial.print(" | Dhuhr=");
-        Serial.print(monthlyPrayerTimes[i].dhuhr);
-        Serial.print(" | Maghrib=");
-        Serial.print(monthlyPrayerTimes[i].maghrib);
-        Serial.print(" | Isha=");
-        Serial.println(monthlyPrayerTimes[i].isha);
-    }
-
     http.end();
-    Serial.println("Monatsdaten erfolgreich eingelesen.");
-    Serial.println("======================================");
-    return true;
+    return false;
+  }
+
+  const char* error = "";
+  bool ok = prayer::parseMonthStream(http.getStream(), year, month, out, &error, recordMinHeap);
+  http.end();
+
+  if (!ok) {
+    Serial.print("Monatsdaten ungueltig: ");
+    Serial.println(error);
+  }
+  return ok;
+}
+
+bool fetchMonthlyPrayerTimes(const char* apiUrl, int year, int month, prayer::MonthTimes& out) {
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("WiFi ist nicht verbunden!");
+    return false;
+  }
+
+  Serial.println("======================================");
+  Serial.print("API-URL: ");
+  Serial.println(apiUrl);
+  Serial.printf("Heap vor Abruf: %u frei, groesster Block %u\n", ESP.getFreeHeap(), ESP.getMaxFreeBlockSize());
+
+  minFreeHeap = ESP.getFreeHeap();
+  bool ok = fetchWithClient(apiUrl, year, month, out);
+
+  // Groesster Block < ~20 KB -> der naechste TLS-Abruf kann scheitern (Fragmentierung).
+  Serial.printf("Heap: Minimum waehrend Abruf %u, danach %u frei, groesster Block %u\n", minFreeHeap,
+                ESP.getFreeHeap(), ESP.getMaxFreeBlockSize());
+
+  if (ok) Serial.printf("Monat %02d/%d geladen (%d Tage).\n", month, year, out.days);
+  Serial.println("======================================");
+  return ok;
 }

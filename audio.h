@@ -1,24 +1,27 @@
 #ifndef AUDIO_H
 #define AUDIO_H
+
+#include <Arduino.h>
 #include <SoftwareSerial.h>
 #include "DFRobotDFPlayerMini.h"
-// Externe Deklaration der Variablen
+
 extern SoftwareSerial mySerial;
 extern DFRobotDFPlayerMini myDFPlayer;
-extern bool isAudioInitialized; // Zustand der Audio-Initialisierung
+extern bool isAudioInitialized;
 
-extern int athanTrack;
-extern int reminderTrack;
-
-
-// Funktionsprototypen
 void setupAudio();
-void playAthan(String athanTone);
-void playReminder(String reminderTone);
+void updateAudio();  // in loop() aufrufen: erkennt das Ende eines Tracks
+// volume: 0-30, -1 = aktuelle Lautstärke
+void playAthan(String athanTone, int volume = -1);
+void playFajrAthan(String tone, int volume = -1);  // aus /03, sonst /01
+void playReminder(String reminderTone, int volume = -1);
+bool hasOwnFajrAthans();  // Gibt es Dateien in /03?
 void showBootMessage(const char* message);
-
-// NEU: Fehlende Funktionen
 bool isAudioPlaying();
 void stopAudio();
+void setVolume(int volume);
+void volumeUp();
+void volumeDown();
+int getCurrentVolume();
 
-#endif // AUDIO_H
+#endif
