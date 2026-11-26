@@ -1,9 +1,19 @@
 #include "buttons.h"
 #include "menu.h"
 #include "audio.h"
+#include <Adafruit_ST7735.h>
 
-unsigned long btnPressTime = 0;
-unsigned long lastBtnPress = 0;
+extern Adafruit_ST7735 display;
+
+unsigned long btnPressTimeUp = 0;
+unsigned long btnPressTimeDn = 0;
+unsigned long lastBtnEvent = 0;
+
+const unsigned long DEBOUNCE_MS = 80;
+const unsigned long LONG_PRESS_MS = 2000;
+
+bool upLongHandled = false;
+bool dnLongHandled = false;
 
 void setupButtons() {
     pinMode(BTN_VOL_UP, INPUT_PULLUP);
@@ -12,47 +22,85 @@ void setupButtons() {
 
 void handleButtons() {
     unsigned long now = millis();
-    if (now - lastBtnPress < 50) return;  // Debounce
-    
-    bool btnUpPressed = !digitalRead(BTN_VOL_UP);
-    bool btnDnPressed = !digitalRead(BTN_VOL_DN);
-    
-    // WICHTIG: Nur bei BUTTON-DRÜCKEN handeln
-    if (btnUpPressed || btnDnPressed) {
-        // AUDIO STOPPEN bei jedem Drücken
-        if (isAudioPlaying()) {
-            stopAudio();
-            return;
+
+    if (now - lastBtnEvent < DEBOUNCE_MS) return;
+
+    bool upPressed = !digitalRead(BTN_VOL_UP);
+    bool dnPressed = !digitalRead(BTN_VOL_DN);
+
+    if ((upPressed || dnPressed) && isAudioPlaying() && !isMenuOpen()) {
+        stopAudio();
+        lastBtnEvent = now;
+        btnPressTimeUp = 0;
+        btnPressTimeDn = 0;
+        upLongHandled = false;
+        dnLongHandled = false;
+        return;
+    }
+
+    if (upPressed) {
+        if (btnPressTimeUp == 0) {
+            btnPressTimeUp = now;
+            upLongHandled = false;
         }
-        
-        // Lange Taste nur für BTN_VOL_UP!
-        if (btnUpPressed && (now - btnPressTime > 2000)) {
-            toggleMenu();
-            btnPressTime = 0;
-            return;
-        }
-        
-        // Button gerade gedrückt (btnPressTime == 0)
-        if (btnPressTime == 0) {
-            btnPressTime = now;
-        }
-    } else {
-        // LOSGELASSEN → Kurzdruck
-        if (btnPressTime > 0) {
-            unsigned long duration = now - btnPressTime;
-            if (duration < 2000) {  // < 2s = Kurz
-                if (digitalRead(BTN_VOL_UP) == HIGH) {
-                    onShortPressUp();
-                }
-                if (digitalRead(BTN_VOL_DN) == HIGH) {
-                    onShortPressDown();
-                }
+
+        if (!upLongHandled && (now - btnPressTimeUp >= LONG_PRESS_MS)) {
+            if (isMenuOpen()) {
+                confirmSelection();
+            } else {
+                toggleMenu();
             }
-            btnPressTime = 0;
+            upLongHandled = true;
+            lastBtnEvent = now;
         }
+    } else if (btnPressTimeUp > 0) {
+        if (!upLongHandled && (now - btnPressTimeUp < LONG_PRESS_MS)) {
+            if (isMenuOpen()) {
+                scrollMenuUp();
+            } else {
+                volumeUp();
+                showVolumeOverlay(display, getCurrentVolume());
+            }
+        }
+
+        btnPressTimeUp = 0;
+        upLongHandled = false;
+        lastBtnEvent = now;
+    }
+
+    if (dnPressed) {
+        if (btnPressTimeDn == 0) {
+            btnPressTimeDn = now;
+            dnLongHandled = false;
+        }
+
+        if (!dnLongHandled && (now - btnPressTimeDn >= LONG_PRESS_MS)) {
+            if (isMenuOpen()) {
+                goBackOneLevel();
+            }
+            dnLongHandled = true;
+            lastBtnEvent = now;
+        }
+    } else if (btnPressTimeDn > 0) {
+        if (!dnLongHandled && (now - btnPressTimeDn < LONG_PRESS_MS)) {
+            if (isMenuOpen()) {
+                scrollMenuDown();
+            } else {
+                volumeDown();
+                showVolumeOverlay(display, getCurrentVolume());
+            }
+        }
+
+        btnPressTimeDn = 0;
+        dnLongHandled = false;
+        lastBtnEvent = now;
     }
 }
 
 bool isAnyButtonPressed() {
     return !digitalRead(BTN_VOL_UP) || !digitalRead(BTN_VOL_DN);
+}
+
+bool isUpButtonPressed() {
+    return !digitalRead(BTN_VOL_UP);
 }

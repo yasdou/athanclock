@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: ArduinoJson (nur Header) holen
+        run: git clone --depth 1 --branch v7.4.2 https://github.com/bblanchon/ArduinoJson.git "$RUNNER_TEMP/ArduinoJson"
+      - name: Unit-Tests (PC)
+        run: |
+          g++ -std=c++11 -Wall -Wextra -Werror -I. test/test_prayer_logic.cpp prayer_logic.cpp -o test_prayer_logic
+          ./test_prayer_logic
+          g++ -std=c++11 -Wall -Wextra -Werror -I. -isystem "$RUNNER_TEMP/ArduinoJson/src" test/test_month_parser.cpp prayer_logic.cpp -o test_month_parser
+          ./test_month_parser
+
+  firmware-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: AthanClock
+      - uses: arduino/setup-arduino-cli@v2
+      - name: ESP8266-Core und Bibliotheken installieren
+        run: |
+          arduino-cli config init
+          arduino-cli config add board_manager.additional_urls https://arduino.esp8266.com/stable/package_esp8266com_index.json
+          arduino-cli core update-index
+          arduino-cli core install esp8266:esp8266
+          arduino-cli lib install "ArduinoJson" "Adafruit GFX Library" "Adafruit ST7735 and ST7789 Library" "DFRobotDFPlayerMini"
+      - name: Platzhalter-Zugangsdaten anlegen
+        run: printf 'const char* ssid = "ci";\nconst char* password = "ci";\n' > AthanClock/config.cpp
+      - name: Firmware kompilieren (NodeMCU)
+        run: arduino-cli compile --fqbn esp8266:esp8266:nodemcuv2 --warnings default AthanClock

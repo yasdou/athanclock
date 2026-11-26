@@ -2,17 +2,10 @@
 #ifndef API_H
 #define API_H
 
-#include <Arduino.h>
+#include "prayer_logic.h"
 
-struct PrayerDay {
-    String fajr;
-    String shuruk;
-    String dhuhr;
-    String asr;
-    String maghrib;
-    String isha;
-};
-
-bool fetchMonthlyPrayerTimes(PrayerDay monthlyPrayerTimes[], int& daysInMonth, const String& apiUrl);
+// Lädt einen Monatskalender von aladhan nach out.
+// Gibt nur bei vollständig gültigen Daten true zurück; sonst bleibt out unverändert.
+bool fetchMonthlyPrayerTimes(const char* apiUrl, int year, int month, prayer::MonthTimes& out);
 
 #endif
